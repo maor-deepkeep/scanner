@@ -15,7 +15,7 @@ jobs:
     env:
       SRC_PATH: "scanner"        # <-- path in GitHub repo
       DEST_PATH: "microservices/scanner"                # <-- path in Azure repo
-      TARGET_BRANCH: "scanner-sync-from-github" # <-- non-master branch
+      TARGET_BRANCH: "model-scanner-integration" # <-- non-master branch
     steps:
       - name: Checkout GitHub repo
         uses: actions/checkout@v4
