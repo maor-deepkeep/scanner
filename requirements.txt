@@ -1,0 +1,14 @@
+fastapi
+pydantic
+uvicorn
+httpx
+celery[pymongo]
+celery[redis]
+pymongo
+redis
+boto3
+python-multipart
+aiohttp
+pytest
+pytest-asyncio
+requests

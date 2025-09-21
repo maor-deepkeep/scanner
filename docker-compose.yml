@@ -1,0 +1,97 @@
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - backend
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+
+  # Model-total
+  model-total:
+    build: .
+    container_name: model-total
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - backend_data:/data
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - MONGODB_URL=mongodb://admin:password123@mongodb:27017
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - backend
+    depends_on:
+      - mongodb
+      - redis
+      - minio
+      - tasks_worker
+  
+  # Worker scanner
+  tasks_worker:
+    build: .
+    container_name: tasks-worker
+    command: celery -A tasks.tasks.celery_app worker --loglevel=info
+    environment:
+      REDIS_URL: redis://redis:6379
+      MONGODB_URL: mongodb://admin:password123@mongodb:27017
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      OFFLINE_MODE: false
+    volumes:
+      - backend_data:/data
+    networks:
+      - backend
+    depends_on:
+      - redis
+      - mongodb
+      - minio
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # S3 Web, DONT DO THIS ON PROD
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    networks:
+      - backend
+
+networks:
+  backend:
+    name: backend_network
+
+volumes:
+  mongodb_data:
+    name: mongodb_data
+  minio_data:
+    name: minio_data
+  backend_data:
+    name: backend_data
+  
