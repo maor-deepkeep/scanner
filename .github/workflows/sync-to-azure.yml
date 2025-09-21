@@ -6,7 +6,7 @@ on:
       - "**"
     # Only trigger when the source path changes (adjust as needed)
     paths:
-      - "scanner/**"     # <-- match your SRC_PATH
+      - "microservices/scanner/**"     # <-- match your SRC_PATH
   workflow_dispatch: {}
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SRC_PATH: "scanner"        # <-- path in GitHub repo
-      DEST_PATH: "scanner"                # <-- path in Azure repo
+      DEST_PATH: "microservices/scanner"                # <-- path in Azure repo
       TARGET_BRANCH: "scanner-sync-from-github" # <-- non-master branch
     steps:
       - name: Checkout GitHub repo
