@@ -843,7 +843,7 @@ wY1xYMbGvDQmVqC9MFOmiWDQQIbB1l5KiAioCXVqAR4qZ3mYQguNe30RQzaDrPMo
         
         model_with_github = {
             'model': 'test',
-            'github_token': '***REMOVED***',
+            'github_token': 'fake_github_token_for_testing_only',
             'github_pat': 'github_pat_11AABCCDD_1234567890abcdefghijklmnopqrstuvwxyz',
             'npm_token': 'npm_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456'
         }

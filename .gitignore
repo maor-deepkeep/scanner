@@ -208,3 +208,9 @@ __marimo__/
 
 data/
 .claude
+outputs
+models
+.DS_Store
+claude.md
+test-results/
+scan_report.html
