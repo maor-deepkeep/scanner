@@ -33,10 +33,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - backend_data:/data
+      # TODO: Remove these volume mounts in production - only for development hot-reloading
+      - ./app:/app/app:ro
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_URL=mongodb://admin:password123@mongodb:27017
       - REDIS_URL=redis://redis:6379
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
     networks:
       - backend
     depends_on:
@@ -49,7 +53,7 @@ services:
   tasks_worker:
     build: .
     container_name: tasks-worker
-    command: celery -A tasks.tasks.celery_app worker --loglevel=info
+    command: celery -A app.tasks.tasks.celery_app worker --loglevel=info
     environment:
       REDIS_URL: redis://redis:6379
       MONGODB_URL: mongodb://admin:password123@mongodb:27017
@@ -57,8 +61,12 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       OFFLINE_MODE: false
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
     volumes:
       - backend_data:/data
+      # TODO: Remove these volume mounts in production - only for development hot-reloading
+      - ./app:/app/app:ro
     networks:
       - backend
     depends_on:

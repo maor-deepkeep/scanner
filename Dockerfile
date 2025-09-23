@@ -1,6 +1,12 @@
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install Poetry
+ENV POETRY_HOME=/opt/poetry \
+    POETRY_VERSION=1.8.3 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1
+
+# Install system dependencies and Poetry
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -8,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     apt-transport-https \
     lsb-release \
+    && curl -sSL https://install.python-poetry.org | python3 - --version ${POETRY_VERSION} \
+    && ln -s /opt/poetry/bin/poetry /usr/local/bin/poetry \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Docker CLI
@@ -30,9 +38,11 @@ ENV TRIVY_CACHE_DIR=/data/trivy-cache
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy Poetry files and install Python dependencies
+COPY pyproject.toml ./
+# Generate lock file if it doesn't exist, otherwise use existing
+RUN poetry lock || true
+RUN poetry install --with dev --no-root
 
 # Copy application code
 COPY /app .
@@ -47,4 +57,4 @@ RUN chmod +x /init.sh
 # Initialize environment
 ENTRYPOINT ["/init.sh"]
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
