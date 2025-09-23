@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 import logging
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel
@@ -43,6 +43,10 @@ class Severity(Enum):
 class ScannerType(Enum):
     TRIVY = "trivy"
     MODEL_TOTAL = "model_total"
+    MODELSCAN = "modelscan"
+    PICKLESCAN = "picklescan"
+    FICKLING = "fickling"
+    MODELAUDIT = "modelaudit"
 
 
 class AffectedType(Enum):
@@ -55,6 +59,12 @@ class IssueType(Enum):
     LICENSE = "license"
     TAMPER = "tamper"
     RISK = "risk"
+    MALICIOUS_CODE = "malicious_code"
+
+
+class TechnicalDetails(BaseModel):
+    """Dynamic technical details from scanner outputs - captures all raw scanner data"""
+    model_config = {"extra": "allow"}  # Pydantic v2 way to allow extra fields
 
 
 class Affected(BaseModel):
@@ -73,12 +83,17 @@ class Issue(BaseModel):
     affected: List[Affected]
     recommendation: str
     references: List[str]
-    detected_by: ScannerType
+    detected_by: Union[ScannerType, List[ScannerType]]
     detected_at: datetime
+    technical_details: Optional[TechnicalDetails] = None
 
 
 class StaticScanResult(BaseModel):
     operation_id: str
+    model_id: str
+    model_name: str
+    model_version: str
+    final_verdict: str
     ml_bom: Dict[str, Any]
     s_bom: Dict[str, Any]
     issues: List[Issue]

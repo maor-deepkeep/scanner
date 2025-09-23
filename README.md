@@ -19,7 +19,11 @@ ModelTotal/
 │   │   │   └── validator.py     # File integrity and manifest validation
 │   │   ├── scanners/            # Individual scanner implementations
 │   │   │   ├── trivy_scanner.py # Trivy vulnerability scanning
-│   │   │   └── pypi_license_scanner.py # PyPI license detection
+│   │   │   ├── pypi_license_scanner.py # PyPI license detection
+│   │   │   ├── modelscan_scanner.py # ModelScan ML-specific security scanner
+│   │   │   ├── picklescan_scanner.py # PickleScan for pickle file analysis
+│   │   │   ├── fickling_scanner.py # Fickling pickle security scanner
+│   │   │   └── modelaudit_scanner.py # ModelAudit ML model scanner
 │   │   └── classifiers/         # License and risk classification
 │   │       └── license_classifier.py # License risk assessment
 │   └── tasks/                   # Celery background tasks
@@ -141,6 +145,49 @@ ModelTotal/
     "updated_at": "datetime"
   }
   ```
+
+## Scanner Architecture
+
+### Unified Scanner Result Structure
+
+All security scanners inherit from `BaseScanResult` and implement a uniform interface:
+
+```python
+class BaseScanResult(BaseModel):
+    # Core fields (always available)
+    scanner_name: str
+    scan_duration: float
+    
+    # Result fields (common across scanners)
+    verdict: str  # SAFE, SUSPICIOUS, MALICIOUS
+    issues_count: int
+    
+    # Optional fields
+    files_scanned: List[str]
+    affected_files: List[str]  # Files with issues
+    
+    # Scanner-specific data
+    scanner_data: Dict[str, Any]  # Used by to_issues()
+    raw_output: Dict[str, Any]    # Complete scanner output
+    errors: List[str]
+```
+
+### Available Security Scanners
+
+1. **ModelScan** - Detects unsafe operations in ML models
+2. **PickleScan** - Analyzes pickle files for dangerous operations
+3. **Fickling** - Alternative pickle security scanner with different detection methods
+4. **ModelAudit** - Comprehensive ML model security audit
+5. **Trivy** - Container and dependency vulnerability scanning
+6. **PyPI License Scanner** - License compliance checking
+
+### Scanner Base Classes
+
+All scanner implementations inherit from:
+- `BaseScanner` - Provides common file discovery and filtering utilities
+- `BaseScanResult` - Ensures uniform result structure across all scanners
+
+Both base classes are defined in `app/models.py` to avoid circular dependencies.
 
 ## Organization Separation
 
