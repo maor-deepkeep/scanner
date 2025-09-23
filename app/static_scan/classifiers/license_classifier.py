@@ -1,7 +1,7 @@
 import logging
 from typing import Tuple
 
-from models import LicenseClassification, RiskLevel, License, LicenseWithClassification
+from app.models import LicenseClassification, RiskLevel, License, LicenseWithClassification
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from models import StaticScanInitiationRequest, StaticScanInitiationResponse, StaticScanStatus, StaticScanResult
-from static_scan.static_scan_controller import StaticScanController
+from app.models import StaticScanInitiationRequest, StaticScanInitiationResponse, StaticScanStatus, StaticScanResult
+from app.static_scan.static_scan_controller import StaticScanController
 
 
 router = APIRouter(prefix="/static-scan")

@@ -4,7 +4,7 @@ import tempfile
 import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from models import TrivyDBUpdateResult
+from app.models import TrivyDBUpdateResult
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/trivy")
