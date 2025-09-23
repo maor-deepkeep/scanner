@@ -1,0 +1,1 @@
+"""Test fixtures for ModelTotal security scanners."""
