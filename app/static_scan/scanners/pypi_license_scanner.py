@@ -4,7 +4,7 @@ import re
 import urllib.request
 from typing import List
 
-from models import LicensesScanningResult, License, Package, PackageManager
+from app.models import LicensesScanningResult, License, Package, PackageManager
 
 logger = logging.getLogger(__name__)
 

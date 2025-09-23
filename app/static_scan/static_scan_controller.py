@@ -1,7 +1,7 @@
 import logging
 
-from tasks.tasks import scan_task, get_task_status, get_task_result
-from models import StaticScanInitiationRequest, StaticScanInitiationResponse, StaticScanStatus, StaticScanResult
+from app.tasks.tasks import scan_task, get_task_status, get_task_result
+from app.models import StaticScanInitiationRequest, StaticScanInitiationResponse, StaticScanStatus, StaticScanResult
 
 logger = logging.getLogger(__name__)
 

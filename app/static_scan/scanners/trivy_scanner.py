@@ -5,7 +5,7 @@ import logging
 import datetime
 import os
 
-from models import TrivyScanningResult, Vulnerability, Package, PackageManager, ScannerType, Severity, Affected, AffectedType
+from app.models import TrivyScanningResult, Vulnerability, Package, PackageManager, ScannerType, Severity, Affected, AffectedType
 
 logger = logging.getLogger(__name__)
 
