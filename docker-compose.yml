@@ -33,8 +33,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - backend_data:/data
-      # TODO: Remove these volume mounts in production - only for development hot-reloading
-      - ./app:/app/app:ro
+      # Optional dev hot-reload bind mount.
+      # If your host path (/deepkeep-dev/...) is NOT shared in Docker Desktop, set CODE_PATH to a shared path
+      # (e.g. export CODE_PATH=/Users/you/dev/deepkeep-sentry/microservices/model_scanner/app)
+      # or remove this line to avoid mount errors.
+      - type=bind,source=${CODE_PATH:-./app},target=/app/app,read_only=true
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_URL=mongodb://admin:password123@mongodb:27017
@@ -60,13 +63,13 @@ services:
       MINIO_URL: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      OFFLINE_MODE: false
+      OFFLINE_MODE: 'true'
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
     volumes:
       - backend_data:/data
-      # TODO: Remove these volume mounts in production - only for development hot-reloading
-      - ./app:/app/app:ro
+      # Optional dev hot-reload (same notes as above). Remove if not needed.
+      - type=bind,source=${CODE_PATH:-./app},target=/app/app,read_only=true
     networks:
       - backend
     depends_on:
@@ -80,14 +83,43 @@ services:
     image: quay.io/minio/minio
     container_name: minio
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # S3 Web, DONT DO THIS ON PROD
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio_data:/data
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
+    # Rewritten entrypoint: use YAML list to avoid compose interpolation errors.
+    # All $ -> $$ so shell expands them inside container (compose won't).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        /usr/bin/minio server /data --console-address ':9001' &
+        pid=$$!
+        echo 'Waiting for MinIO...'
+        if command -v wget >/dev/null 2>&1; then
+          DL_HEALTH='wget -q -O -'
+          DL_FILE='wget -q -O'
+        elif command -v curl >/dev/null 2>&1; then
+          DL_HEALTH='curl -s'
+          DL_FILE='curl -s -o'
+        else
+          echo 'Need wget or curl in image'; exit 1
+        fi
+        until $$DL_HEALTH http://localhost:9000/minio/health/ready >/dev/null 2>&1; do
+          sleep 1
+        done
+        echo 'MinIO ready, configuring bucket...'
+        $$DL_FILE /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc
+        chmod +x /usr/local/bin/mc
+        /usr/local/bin/mc alias set local http://localhost:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD
+        /usr/local/bin/mc mb --ignore-existing local/model-total-string
+        /usr/local/bin/mc anonymous set download local/model-total-string
+        echo 'Bucket model-total-string is public (download).'
+        wait $$pid
     networks:
       - backend
 
@@ -102,4 +134,3 @@ volumes:
     name: minio_data
   backend_data:
     name: backend_data
-  

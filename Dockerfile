@@ -1,4 +1,8 @@
+# syntax=docker/dockerfile:1.6
 FROM python:3.11-slim
+# NOTE: Pin this image to a digest to stabilize cache (example):
+# FROM python:3.11-slim@sha256:<digest>
+# If the slim image updates, the dependency install layer is rebuilt.
 
 # Install Poetry
 ENV POETRY_HOME=/opt/poetry \
@@ -28,24 +32,24 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /
 # Install Trivy
 RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-# Create Trivy cache directory and download database for air-gapped use
 RUN mkdir -p /opt/trivy-cache
+# Download database for air-gapped use
 RUN trivy image --cache-dir /opt/trivy-cache --download-db-only
 
-# Set Trivy cache directory environment variable
 ENV TRIVY_CACHE_DIR=/data/trivy-cache
 
-# Set working directory
 WORKDIR /app
 
-# Copy Poetry files and install Python dependencies
-COPY pyproject.toml ./
-# Generate lock file if it doesn't exist, otherwise use existing
-RUN poetry lock || true
-RUN poetry install --with dev --no-root
+# Dependency layer: copy manifest + lock first so dependency install is cached.
+# Rebuild only when pyproject.toml / poetry.lock change (faster app-only edits).
+COPY pyproject.toml poetry.lock* ./
+# Use BuildKit cache mounts so large wheels are reused across builds.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --no-root --no-interaction
 
 # Copy application code
-COPY /app .
+COPY app/ ./app
 
 # Expose port
 EXPOSE 8000

@@ -231,10 +231,40 @@ async with ModelTotal("http://localhost:8000") as client:
 - **Version**: Supports Trivy DB v2 format only
 - **Size**: No explicit limits, but consider container resources
 
+## Installation
+
+## pyenv
+``` bash
+sudo apt update
+sudo apt install -y build-essential curl git zlib1g-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev libncursesw5-dev xz-utils tk-dev
+curl https://pyenv.run | bash
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+## python 3.11
+``` bash
+sudo apt install -y liblzma-dev xz-utils
+pyenv install 3.11
+pyenv local 3.11
+```
+
+## poetry
+``` bash
+poetry env use $(pyenv which python)
+poetry config virtualenvs.in-project true
+poetry install # optionally add --with-dev
+```
+
+
 ## How to Run
 
 ### Development Mode
+Make sure docker engine started
 ```bash
+docker-compose down
 docker-compose up --build -d
 ```
 
