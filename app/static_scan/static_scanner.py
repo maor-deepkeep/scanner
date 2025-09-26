@@ -281,9 +281,13 @@ class StaticScanner:
             logger.info(f"Model security scan completed with {len(model_security_result.aggregated_issues)} issues")
 
             progress_callback(60)
-            logger.info(f"Scanning model artifact using Trivy")
-            trivy_scanning_result = trivy_scanner.scan(temp_dir)
-            logger.info(f"Model scanned for vulnerabilities/sbom, result: {trivy_scanning_result}")
+            logger.info(f"Scanning model using Trivy for path: {temp_dir}")
+            try:
+                trivy_scanning_result = trivy_scanner.scan(temp_dir)
+            except Exception as e:
+                logger.error(f"Trivy scan failed with error: {e}")
+                raise
+            logger.info(f"Model scanned for vulnerabilities/sbom, found {len(trivy_scanning_result.vulnerabilities)} vulnerabilities and {len(trivy_scanning_result.packages)} packages")
             progress_callback(70)
 
             license_classifications = []
@@ -291,7 +295,7 @@ class StaticScanner:
             if not offline_mode:
                 logger.info(f"Scanning model artifact using PypiLicenseScanner")
                 license_scanning_result = license_scanner.scan(trivy_scanning_result.packages)
-                logger.info(f"Model scanned for licenses, result: {license_scanning_result}")
+                logger.info(f"Model scanned for licenses, found {len(license_scanning_result.licenses)} licenses")
                 progress_callback(80)
 
                 license_classifications = self._classify_licenses(license_scanning_result)
