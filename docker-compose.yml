@@ -34,10 +34,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - backend_data:/data
       # Optional dev hot-reload bind mount.
-      # If your host path (/deepkeep-dev/...) is NOT shared in Docker Desktop, set CODE_PATH to a shared path
-      # (e.g. export CODE_PATH=/Users/you/dev/deepkeep-sentry/microservices/model_scanner/app)
-      # or remove this line to avoid mount errors.
-      - type=bind,source=${CODE_PATH:-./app},target=/app/app,read_only=true
+      # If your host path is NOT shared in Docker Desktop, set CODE_PATH to a shared path
+      # (e.g. export CODE_PATH=/Users/you/dev/deepkeep-sentry/microservices/model_scanner/src)
+      - type: bind
+        source: ${CODE_PATH:-./src}
+        target: /app/src
+        read_only: true
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_URL=mongodb://admin:password123@mongodb:27017
@@ -56,7 +58,7 @@ services:
   tasks_worker:
     build: .
     container_name: tasks-worker
-    command: celery -A app.tasks.tasks.celery_app worker --loglevel=info --concurrency=8
+    command: celery -A src.tasks.tasks.celery_app worker --loglevel=info --concurrency=8
     environment:
       REDIS_URL: redis://redis:6379
       MONGODB_URL: mongodb://admin:password123@mongodb:27017
@@ -69,7 +71,10 @@ services:
     volumes:
       - backend_data:/data
       # Optional dev hot-reload (same notes as above). Remove if not needed.
-      - type=bind,source=${CODE_PATH:-./app},target=/app/app,read_only=true
+      - type: bind
+        source: ${CODE_PATH:-./src}
+        target: /app/src
+        read_only: true
     networks:
       - backend
     depends_on:
