@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.6
-FROM python:3.11-slim
+FROM python:3.10-slim
 # NOTE: Pin this image to a digest to stabilize cache (example):
-# FROM python:3.11-slim@sha256:<digest>
+# FROM python:3.10-slim@sha256:<digest>
 # If the slim image updates, the dependency install layer is rebuilt.
 
 # Install Poetry
