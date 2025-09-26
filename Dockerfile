@@ -46,10 +46,10 @@ COPY pyproject.toml poetry.lock* ./
 # Use BuildKit cache mounts so large wheels are reused across builds.
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-root --no-interaction
+    poetry install --no-root --no-interaction --with dev
 
 # Copy application code
-COPY app/ ./app
+COPY src/ ./src
 
 # Expose port
 EXPOSE 8000
@@ -61,4 +61,4 @@ RUN chmod +x /init.sh
 # Initialize environment
 ENTRYPOINT ["/init.sh"]
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
