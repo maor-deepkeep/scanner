@@ -56,7 +56,7 @@ services:
   tasks_worker:
     build: .
     container_name: tasks-worker
-    command: celery -A app.tasks.tasks.celery_app worker --loglevel=info
+    command: celery -A app.tasks.tasks.celery_app worker --loglevel=info --concurrency=8
     environment:
       REDIS_URL: redis://redis:6379
       MONGODB_URL: mongodb://admin:password123@mongodb:27017
