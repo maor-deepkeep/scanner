@@ -5,7 +5,7 @@ import logging
 import datetime
 import os
 
-from app.models import TrivyScanningResult, Vulnerability, Package, PackageManager, ScannerType, Severity, Affected, AffectedType
+from src.models import TrivyScanningResult, Vulnerability, Package, PackageManager, ScannerType, Severity, Affected, AffectedType
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,8 @@ class TrivyScanner:
         try:
             scanning_time = datetime.datetime.now()
             
-            # Worker-specific cache directory for concurrency
-            base_cache_dir = os.getenv('TRIVY_CACHE_DIR', '/data/trivy-cache')
-            worker_id = os.getpid()
-            cache_dir = os.path.join(base_cache_dir, f'worker-{worker_id}')
-            
+            # Use shared cache directory - Trivy handles concurrent access properly
+            cache_dir = os.getenv('TRIVY_CACHE_DIR', '/data/trivy-cache')
             os.makedirs(cache_dir, exist_ok=True)
 
             logger.info(f"Running trivy with cache_dir={cache_dir}, offline_mode={self._offline_mode}")
