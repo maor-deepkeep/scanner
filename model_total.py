@@ -169,34 +169,40 @@ class ModelTotal:
     async def _upload_file(self, path: str, file_path: str, timeout: int = DEFAULT_TIMEOUT):
         """
         Upload a file with a fresh session.
-        
+
         Args:
             path: API endpoint path
             file_path: Path to the file to upload
             timeout: Request timeout in seconds
-            
+
         Returns:
             Response data as dict
-            
+
         Raises:
             aiohttp.ClientError: If the request fails
         """
         import os
-        
+
         connector = aiohttp.TCPConnector(
             limit=100,
             limit_per_host=30
         )
-        
+
         with open(file_path, 'rb') as f:
             data = aiohttp.FormData()
             data.add_field('file', f, filename=os.path.basename(file_path), content_type='application/gzip')
-            
+
+            # Use extended timeout for large file uploads
+            timeout_config = aiohttp.ClientTimeout(
+                total=timeout,
+                sock_read=300  # 5 minutes read timeout for large uploads
+            )
+
             async with aiohttp.ClientSession(connector=connector) as session:
                 async with session.post(
                     f"{self.base_url}/{path}",
                     data=data,
-                    timeout=aiohttp.ClientTimeout(total=timeout)
+                    timeout=timeout_config
                 ) as response:
                     response.raise_for_status()
                     return await response.json()
@@ -300,7 +306,7 @@ class ModelTotal:
         if not db_file_path.endswith(('.tgz', '.tar.gz')):
             raise ValueError("Database file must be a .tgz or .tar.gz file")
         
-        response_data = await self._upload_file("trivy", db_file_path, timeout)
+        response_data = await self._upload_file("trivy/", db_file_path, timeout)
         return TrivyDBUpdateResult(**response_data)
     
     async def __aenter__(self):
