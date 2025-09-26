@@ -134,7 +134,72 @@ class ModelTotal:
             base_url: Base URL of the ModelTotal API server
         """
         self.base_url = base_url.rstrip('/')
-        self.session = None
+    
+    async def _request(self, method: str, path: str, timeout: int = DEFAULT_TIMEOUT, **kwargs):
+        """
+        Make an HTTP request with a fresh session.
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: API endpoint path
+            timeout: Request timeout in seconds
+            **kwargs: Additional arguments for the request (json, data, etc.)
+            
+        Returns:
+            Response data as dict
+            
+        Raises:
+            aiohttp.ClientError: If the request fails
+        """
+        connector = aiohttp.TCPConnector(
+            limit=100,
+            limit_per_host=30
+        )
+        
+        async with aiohttp.ClientSession(connector=connector) as session:
+            async with session.request(
+                method,
+                f"{self.base_url}/{path}",
+                timeout=aiohttp.ClientTimeout(total=timeout),
+                **kwargs
+            ) as response:
+                response.raise_for_status()
+                return await response.json()
+    
+    async def _upload_file(self, path: str, file_path: str, timeout: int = DEFAULT_TIMEOUT):
+        """
+        Upload a file with a fresh session.
+        
+        Args:
+            path: API endpoint path
+            file_path: Path to the file to upload
+            timeout: Request timeout in seconds
+            
+        Returns:
+            Response data as dict
+            
+        Raises:
+            aiohttp.ClientError: If the request fails
+        """
+        import os
+        
+        connector = aiohttp.TCPConnector(
+            limit=100,
+            limit_per_host=30
+        )
+        
+        with open(file_path, 'rb') as f:
+            data = aiohttp.FormData()
+            data.add_field('file', f, filename=os.path.basename(file_path), content_type='application/gzip')
+            
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.post(
+                    f"{self.base_url}/{path}",
+                    data=data,
+                    timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as response:
+                    response.raise_for_status()
+                    return await response.json()
     
     async def scan_artifact(
         self,
@@ -175,19 +240,13 @@ class ModelTotal:
             org_id=org_id
         )
         
-        # Ensure session is created
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
-        
-        # Initiate scan
-        async with self.session.post(
-            f"{self.base_url}/static-scan",
-            json=scan_request.model_dump(),
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as response:
-            response.raise_for_status()
-            response_data = await response.json()
-            scan_response = StaticScanInitiationResponse(**response_data)
+        response_data = await self._request(
+            "POST",
+            "static-scan",
+            timeout=timeout,
+            json=scan_request.model_dump()
+        )
+        scan_response = StaticScanInitiationResponse(**response_data)
         
         if not scan_response.success:
             raise ValueError(f"Scan initiation failed: {scan_response.error}")
@@ -241,39 +300,20 @@ class ModelTotal:
         if not db_file_path.endswith(('.tgz', '.tar.gz')):
             raise ValueError("Database file must be a .tgz or .tar.gz file")
         
-        # Ensure session is created
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
-        
-        with open(db_file_path, 'rb') as f:
-            data = aiohttp.FormData()
-            data.add_field('file', f, filename=os.path.basename(db_file_path), content_type='application/gzip')
-            
-            async with self.session.post(
-                f"{self.base_url}/trivy",
-                data=data,
-                timeout=aiohttp.ClientTimeout(total=timeout)
-            ) as response:
-                response.raise_for_status()
-                response_data = await response.json()
-                return TrivyDBUpdateResult(**response_data)
+        response_data = await self._upload_file("trivy", db_file_path, timeout)
+        return TrivyDBUpdateResult(**response_data)
     
     async def __aenter__(self):
         """Async context manager entry."""
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        if self.session:
-            await self.session.close()
+        pass
     
     async def close(self):
         """Close the HTTP session."""
-        if self.session:
-            await self.session.close()
-            self.session = None
+        pass
 
     async def get_scan_status(self, operation_id: str, timeout: int = DEFAULT_TIMEOUT) -> StaticScanStatus:
         """
@@ -286,17 +326,12 @@ class ModelTotal:
         Returns:
             StaticScanStatus with progress information
         """
-        # Ensure session is created
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
-        
-        async with self.session.get(
-            f"{self.base_url}/static-scan/{operation_id}/status",
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as response:
-            response.raise_for_status()
-            response_data = await response.json()
-            return StaticScanStatus(**response_data)
+        response_data = await self._request(
+            "GET",
+            f"static-scan/{operation_id}/status",
+            timeout=timeout
+        )
+        return StaticScanStatus(**response_data)
 
     async def get_scan_results(self, operation_id: str, timeout: int = DEFAULT_TIMEOUT) -> StaticScanResult:
         """
@@ -312,14 +347,9 @@ class ModelTotal:
         Raises:
             aiohttp.ClientError: If the API request fails
         """
-        # Ensure session is created
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
-        
-        async with self.session.get(
-            f"{self.base_url}/static-scan/{operation_id}/results",
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as results_response:
-            results_response.raise_for_status()
-            results_data = await results_response.json()
-            return StaticScanResult(**results_data)
+        results_data = await self._request(
+            "GET",
+            f"static-scan/{operation_id}/results",
+            timeout=timeout
+        )
+        return StaticScanResult(**results_data)
