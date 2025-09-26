@@ -2,7 +2,7 @@ import pytest
 import os
 import tempfile
 import zipfile
-from app.models import IssueType
+from model_total import IssueType
 
 class TestModelTotalIntegration:
     """

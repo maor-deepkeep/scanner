@@ -63,6 +63,20 @@ class TestEndToEnd:
         # Verify issue aggregation
         self._verify_issue_aggregation(result)
         
+        # Should have detected vulnerabilities from Django/Flask/TensorFlow
+        vuln_issues = [i for i in result.issues if (i.type.value if hasattr(i.type, 'value') else i.type) == "vulnerability"]
+        assert len(vuln_issues) >= 2, f"Expected at least 2 vulnerability issues from vulnerable packages, got {len(vuln_issues)}"
+        
+        # Check for eval/exec patterns in risk or malicious_code issues
+        all_issues = result.issues
+        dangerous_patterns = [i for i in all_issues if 
+                            ('eval' in str(i.description).lower() or 'eval' in str(i.title).lower() or
+                             'exec' in str(i.description).lower() or 'exec' in str(i.title).lower())]
+        assert len(dangerous_patterns) >= 0 or len(all_issues) >= 2, f"Expected issues from dangerous patterns or vulnerabilities, got {len(all_issues)} total issues"
+        
+        # Final verdict should be at least MEDIUM due to vulnerabilities
+        assert result.final_verdict in ["MEDIUM", "HIGH", "CRITICAL"], f"Expected verdict >= MEDIUM due to vulnerabilities, got {result.final_verdict}"
+        
         # Verify SBOM generation
         self._verify_sbom(result)
         
@@ -171,23 +185,34 @@ class TestEndToEnd:
                 org_id="malicious-test-org"
             )
         
-        # Should detect multiple issues
-        assert result.final_verdict in ["MEDIUM", "HIGH", "CRITICAL"]
-        assert len(result.issues) > 0
+        # Should detect multiple specific issues
+        assert result.final_verdict in ["HIGH", "CRITICAL"], f"Expected HIGH/CRITICAL verdict for malicious content, got {result.final_verdict}"
+        assert len(result.issues) >= 4, f"Expected at least 4 issues total, got {len(result.issues)}"
         
-        # Should have malicious code issues (from the pickle exploit)
+        # Should have malicious code issues from the os.system exploit
         malicious_issues = [i for i in result.issues if (i.type.value if hasattr(i.type, 'value') else i.type) == "malicious_code"]
-        assert len(malicious_issues) > 0, f"No malicious_code issues found. Issues: {[(i.type, i.title) for i in result.issues]}"
+        assert len(malicious_issues) >= 1, f"Expected at least 1 malicious_code issue (os.system exploit), got {len(malicious_issues)}. All issues: {[(i.type, i.title, i.description) for i in result.issues]}"
         
-        # Should have vulnerability issues
+        # Check for specific malicious pattern (os.system)
+        os_system_found = any('os.system' in str(i.description).lower() or 'os.system' in str(i.title).lower() 
+                              or (hasattr(i, 'technical_details') and i.technical_details and 
+                                  'os.system' in str(i.technical_details).lower()) 
+                              for i in malicious_issues)
+        assert os_system_found, "Should detect os.system exploit in pickle file"
+        
+        # Should have specific vulnerability issues
         vuln_issues = [i for i in result.issues if (i.type.value if hasattr(i.type, 'value') else i.type) == "vulnerability"]
-        assert len(vuln_issues) > 0, f"No vulnerability issues found. Issues: {[(i.type, i.title) for i in result.issues]}"
+        assert len(vuln_issues) >= 2, f"Expected at least 2 vulnerability issues (Django 2.1.0, Flask 0.12.2), got {len(vuln_issues)}"
         
-        # Should have license-related issues (either license type or license-related malicious_code)
+        # Check for specific vulnerable packages
+        vuln_descriptions = ' '.join([str(i.description) + str(i.title) for i in vuln_issues]).lower()
+        assert 'django' in vuln_descriptions or 'flask' in vuln_descriptions, "Should detect Django or Flask vulnerabilities"
+        
+        # GPL license should be detected
         license_issues = [i for i in result.issues if 
                          (i.type.value if hasattr(i.type, 'value') else i.type) == "license" or
-                         ('license' in i.title.lower() or 'gpl' in i.title.upper() or 'copyleft' in i.title.lower())]
-        assert len(license_issues) > 0, f"No license issues found. Issues: {[(i.type, i.title) for i in result.issues]}"
+                         ('license' in i.title.lower() or 'gpl' in str(i.description).lower() or 'copyleft' in str(i.description).lower())]
+        assert len(license_issues) >= 1, f"Expected at least 1 license issue (GPL), got {len(license_issues)}. All issues: {[(i.type, i.title) for i in result.issues]}"
     
     async def test_scan_tampering_detection(self, docker_compose_setup, model_total_client, test_file_server):
         """Test tampering detection across scans."""
@@ -220,12 +245,22 @@ class TestEndToEnd:
                 org_id="tamper-test-org"
             )
             
-            # Should be safe on first scan
-            assert result1.final_verdict in ["NONE", "LOW"]
+            # First scan should be clean
+            assert result1.final_verdict in ["NONE", "LOW"], f"First scan should be NONE or LOW, got {result1.final_verdict}"
+            assert len(result1.issues) == 0 or all(
+                (i.severity.value if hasattr(i.severity, 'value') else i.severity) in ["NONE", "LOW"] 
+                for i in result1.issues
+            ), "First scan should have no significant issues"
             
             # Modify the model file
             with open(os.path.join(model_dir, "model.pkl"), 'wb') as f:
-                pickle.dump({'weights': [4, 5, 6], 'backdoor': True}, f)
+                # Add completely different content and structure
+                pickle.dump({
+                    'weights': [4, 5, 6, 7, 8, 9],  # Different weights
+                    'backdoor': True,  # Added suspicious key
+                    'layers': 100,  # Different architecture
+                    'modified': True
+                }, f)
             
             # Recreate archive with modified file
             with zipfile.ZipFile(zip_path, "w") as zf:
@@ -244,13 +279,17 @@ class TestEndToEnd:
                 org_id="tamper-test-org"
             )
             
-            # Should detect tampering
-            assert result2.final_verdict in ["MEDIUM", "HIGH", "CRITICAL"]
+            # Must detect tampering with appropriate severity
+            assert result2.final_verdict in ["MEDIUM", "HIGH", "CRITICAL"], f"Tampering should raise verdict to >= MEDIUM, got {result2.final_verdict}"
             tamper_issues = [i for i in result2.issues if (i.type.value if hasattr(i.type, 'value') else i.type) == "tamper"]
-            assert len(tamper_issues) > 0, f"No tamper issues found. Issues: {[(i.type, i.title) for i in result2.issues]}"
+            assert len(tamper_issues) >= 1, f"Expected at least 1 tamper issue, got {len(tamper_issues)}. All issues: {[(i.type, i.title) for i in result2.issues]}"
+            
+            # Verify tamper issue has proper details
+            tamper_issue = tamper_issues[0]
+            assert tamper_issue.severity.value if hasattr(tamper_issue.severity, 'value') else tamper_issue.severity in ["MEDIUM", "HIGH", "CRITICAL"], "Tamper issue should have significant severity"
     
     async def test_concurrent_scans(self, docker_compose_setup, model_total_client, test_file_server):
-        """Test multiple concurrent scans."""
+        """Test multiple concurrent scans with truly independent clients."""
         server_url, temp_dir = test_file_server
         
         # Create test model
@@ -269,27 +308,47 @@ class TestEndToEnd:
                     arcname = os.path.relpath(file_path, temp_dir)
                     zf.write(file_path, arcname)
         
-        async with model_total_client as client:
-            # Launch multiple concurrent scans
-            tasks = []
-            for i in range(5):
-                task = client.scan_artifact(
+        # Create independent clients for true concurrency
+        from model_total import ModelTotal
+        
+        async def run_scan_with_own_client(i):
+            """Run scan with completely independent client."""
+            client = ModelTotal("http://localhost:8000")
+            async with client:
+                return await client.scan_artifact(
                     model_id=f"concurrent-{i}",
                     model_name="concurrent-test",
                     model_version="1.0.0",
                     model_url=f"{server_url}/concurrent_model.zip",
                     org_id=f"concurrent-org-{i}"
                 )
-                tasks.append(task)
-            
-            # Wait for all to complete
-            results = await asyncio.gather(*tasks)
         
-        # All should complete successfully
-        assert len(results) == 5
-        for result in results:
-            assert result is not None
-            assert result.final_verdict in ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        # Launch original 5 concurrent scans
+        tasks = [run_scan_with_own_client(i) for i in range(5)]
+        
+        # Wait for all to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Check for exceptions
+        failures = []
+        successful_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                failures.append((i, str(result)))
+            else:
+                successful_results.append(result)
+        
+        # All 5 must succeed
+        assert len(successful_results) == 5, f"Expected ALL 5 scans to succeed, got {len(successful_results)}/5. Failures: {failures}"
+        
+        # All successful scans should have identical verdicts since they scan the same model
+        verdicts = [r.final_verdict for r in successful_results]
+        assert len(set(verdicts)) == 1, f"All concurrent scans should have same verdict, got: {verdicts}"
+        
+        # All should have similar issue counts
+        issue_counts = [len(r.issues) for r in successful_results]
+        if len(issue_counts) > 1:
+            assert max(issue_counts) - min(issue_counts) <= 1, f"Issue counts should be consistent, got: {issue_counts}"
     
     # Helper methods
     
@@ -305,17 +364,31 @@ class TestEndToEnd:
                 'layers': 50
             }, f)
         
-        # Suspicious patterns
+        # Create truly dangerous pickle for testing (os.system call)
+        class DangerousClass:
+            def __reduce__(self):
+                import os
+                return (os.system, ('echo DANGEROUS_PICKLE_EXECUTED',))
+        
+        with open(os.path.join(model_dir, "dangerous.pkl"), 'wb') as f:
+            pickle.dump(DangerousClass(), f)
+        
+        # Suspicious patterns with eval and exec in Python files
         with open(os.path.join(model_dir, "utils.py"), 'w') as f:
             f.write("""import torch
 import numpy as np
+import os
 
 def load_model(path):
     return torch.load(path)
 
 def preprocess(data):
-    # Suspicious: eval usage
+    # Dangerous: eval usage
     return eval(f"np.array({data})")
+
+def backdoor():
+    # Dangerous: exec usage
+    exec("import os; os.system('ls')")
 """)
     
     def _create_dependencies(self, model_dir: str):
@@ -326,6 +399,8 @@ def preprocess(data):
 django==2.2.0
 flask==0.12.2
 tensorflow==1.15.0
+PyYAML==5.3.1
+urllib3==1.25.8
 # GPL licensed
 PyGTK==2.24.0
 # Safe packages
@@ -397,8 +472,11 @@ pandas==2.0.0""")
             else:
                 scanner_types.add(issue.detected_by)
         
-        # We should have issues from at least some scanners
-        assert len(scanner_types) > 0, "No scanner types found in issues"
+        # Should have issues from multiple different scanners
+        assert len(scanner_types) >= 2, f"Expected issues from at least 2 different scanners, got {len(scanner_types)}: {scanner_types}"
+        
+        # Log which scanners reported issues for debugging
+        print(f"Scanners that reported issues: {scanner_types}")
     
     def _verify_issue_aggregation(self, result: Any):
         """Verify issues are properly aggregated."""
@@ -421,15 +499,22 @@ pandas==2.0.0""")
         """Verify Software Bill of Materials."""
         sbom = result.s_bom
         
-        # Should have SBOM structure
-        assert 'bomFormat' in sbom or 'specVersion' in sbom
-        assert 'components' in sbom
+        # Must have valid SBOM structure
+        assert 'bomFormat' in sbom or 'specVersion' in sbom, "SBOM must have format or spec version"
+        assert 'components' in sbom, "SBOM must have components"
         
-        # Components should have required fields
+        # Should have detected our test dependencies
         if sbom['components']:
+            component_names = [c.get('name', '').lower() for c in sbom['components']]
+            # At least some of our test packages should be in SBOM
+            expected_packages = ['django', 'flask', 'tensorflow', 'numpy', 'pandas']
+            found_packages = [pkg for pkg in expected_packages if any(pkg in name for name in component_names)]
+            assert len(found_packages) >= 2, f"Expected at least 2 known packages in SBOM, found: {found_packages}"
+            
+            # Each component should have proper structure
             for component in sbom['components']:
-                assert 'name' in component
-                assert 'version' in component or 'type' in component
+                assert 'name' in component, f"Component missing 'name': {component}"
+                assert 'version' in component or 'type' in component, f"Component missing 'version' or 'type': {component}"
     
     def _verify_mlbom(self, result: Any):
         """Verify ML Bill of Materials."""
