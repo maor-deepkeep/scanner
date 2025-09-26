@@ -12,7 +12,7 @@ import socketserver
 from pathlib import Path
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def docker_compose_setup():
     """
     Fixture to set up and tear down Docker Compose environment for integration tests.
