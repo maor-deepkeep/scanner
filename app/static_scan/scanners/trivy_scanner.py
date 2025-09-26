@@ -31,10 +31,14 @@ class TrivyScanner:
         try:
             scanning_time = datetime.datetime.now()
             
-            # Get Trivy cache directory from environment variable
-            cache_dir = os.getenv('TRIVY_CACHE_DIR')
+            # Worker-specific cache directory for concurrency
+            base_cache_dir = os.getenv('TRIVY_CACHE_DIR', '/data/trivy-cache')
+            worker_id = os.getpid()
+            cache_dir = os.path.join(base_cache_dir, f'worker-{worker_id}')
+            
+            os.makedirs(cache_dir, exist_ok=True)
 
-            logger.info(f"Running trivy, offline_mode={self._offline_mode}")
+            logger.info(f"Running trivy with cache_dir={cache_dir}, offline_mode={self._offline_mode}")
 
             scan_vulnerabilities_command = [
                 'trivy',
