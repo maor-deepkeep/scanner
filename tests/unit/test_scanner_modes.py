@@ -12,9 +12,9 @@ import subprocess
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.static_scan.scanners.trivy_scanner import TrivyScanner
-from app.static_scan.scanners.fickling_scanner import FicklingScanner
-from app.static_scan.scanners.picklescan_scanner import PickleScanScanner
+from src.static_scan.scanners.trivy_scanner import TrivyScanner
+from src.static_scan.scanners.fickling_scanner import FicklingScanner
+from src.static_scan.scanners.picklescan_scanner import PickleScanScanner
 
 
 class TestOfflineMode:
@@ -31,17 +31,17 @@ class TestOfflineMode:
             # Test with OFFLINE_MODE=true
             with patch.dict(os.environ, {'OFFLINE_MODE': 'true'}):
                 # Import here to pick up the env var
-                from app.static_scan.static_scanner import StaticScanner
+                from src.static_scan.static_scanner import StaticScanner
                 scanner = StaticScanner()
                 
                 # Mock the scanners and methods
-                with patch('app.static_scan.static_scanner.TrivyScanner') as MockTrivy:
+                with patch('src.static_scan.static_scanner.TrivyScanner') as MockTrivy:
                     mock_trivy = MagicMock()
                     MockTrivy.return_value = mock_trivy
                     
                     # Check that TrivyScanner is initialized with offline_mode=True
-                    with patch('app.static_scan.static_scanner.Validator'), \
-                         patch('app.static_scan.static_scanner.PypiLicenseScanner'), \
+                    with patch('src.static_scan.static_scanner.Validator'), \
+                         patch('src.static_scan.static_scanner.PypiLicenseScanner'), \
                          patch.object(scanner, '_download_and_extract_zip'), \
                          patch.object(scanner, '_scan_model_security'):
                         

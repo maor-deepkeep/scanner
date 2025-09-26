@@ -18,7 +18,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.static_scan.scanners.modelaudit_scanner import ModelAuditScanner
+from src.static_scan.scanners.modelaudit_scanner import ModelAuditScanner
 from tests.fixtures.malicious_pickles import (
     generate_malicious_pickles,
     generate_benign_pickles,

@@ -13,8 +13,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.static_scan.validation.validator import Validator
-from app.models import ModelArtifact, ModelMetadata, ValidationResult, Verdict
+from src.static_scan.validation.validator import Validator
+from src.models import ModelArtifact, ModelMetadata, ValidationResult, Verdict
 
 
 class TestValidator:

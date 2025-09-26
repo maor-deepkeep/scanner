@@ -11,8 +11,8 @@ import urllib.error
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.static_scan.scanners.pypi_license_scanner import PypiLicenseScanner
-from app.models import Package, PackageManager, LicensesScanningResult
+from src.static_scan.scanners.pypi_license_scanner import PypiLicenseScanner
+from src.models import Package, PackageManager, LicensesScanningResult
 
 
 class TestPypiLicenseScanner:
@@ -134,7 +134,7 @@ class TestPypiLicenseScanner:
     
     # ===== MOCKED TESTS (for specific license scenarios) =====
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_gpl_licenses(self, mock_query, scanner):
         """Test detection of GPL-licensed packages."""
         # Mock PyPI responses for GPL packages
@@ -152,7 +152,7 @@ class TestPypiLicenseScanner:
         assert len(result.licenses) == 3
         assert all('GPL' in license.name for license in result.licenses)
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_mixed_licenses(self, mock_query, scanner, mixed_packages):
         """Test scanning of mixed license types."""
         # Mock different license types
@@ -164,7 +164,7 @@ class TestPypiLicenseScanner:
         assert len(result.licenses) == 1  # Only django (pip package)
         assert result.licenses[0].package.name == "django"
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_commercial_restrictions(self, mock_query, scanner):
         """Test detection of packages with commercial restrictions."""
         # Mock commercial/proprietary licenses
@@ -183,7 +183,7 @@ class TestPypiLicenseScanner:
         license_names = [license.name for license in result.licenses]
         assert "Commercial" in license_names or "Proprietary" in license_names
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_permissive_licenses(self, mock_query, scanner, python_packages):
         """Test scanning of permissive licenses (MIT, Apache, BSD)."""
         # Mock permissive licenses
@@ -197,7 +197,7 @@ class TestPypiLicenseScanner:
         assert "MIT" in license_names
         assert "Apache-2.0" in license_names
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_agpl_detection(self, mock_query, scanner):
         """Test detection of AGPL (strongest copyleft)."""
         # Mock AGPL license
@@ -214,7 +214,7 @@ class TestPypiLicenseScanner:
         assert len(result.licenses) == 2
         assert all('AGPL' in license.name for license in result.licenses)
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_license_conflicts(self, mock_query, scanner):
         """Test detection of license conflicts."""
         # Mock conflicting licenses
@@ -234,7 +234,7 @@ class TestPypiLicenseScanner:
         assert "GPL-3.0" in license_names
         assert "MIT" in license_names
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_unknown_licenses(self, mock_query, scanner):
         """Test handling of packages with unknown licenses."""
         # Mock unknown/None licenses
@@ -260,7 +260,7 @@ class TestPypiLicenseScanner:
         assert len(result.licenses) == 0
         assert isinstance(result, LicensesScanningResult)
     
-    @patch('app.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
+    @patch('src.static_scan.scanners.pypi_license_scanner.PypiLicenseScanner._query_pypi_license')
     def test_scan_license_metadata(self, mock_query, scanner):
         """Test extraction of license metadata."""
         # Mock detailed license response
