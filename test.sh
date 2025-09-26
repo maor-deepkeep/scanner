@@ -82,7 +82,7 @@ run_in_docker() {
     docker run --rm \
         --network "$NETWORK" \
         -v "$(pwd)/tests:/app/tests:ro" \
-        -v "$(pwd)/app:/app/app:ro" \
+        -v "$(pwd)/src:/app/src:ro" \
         -v "$(pwd)/${RESULTS_DIR}:/app/${RESULTS_DIR}" \
         -e PYTHONPATH=/app \
         -e PYTEST_CURRENT_TEST="" \
@@ -204,7 +204,7 @@ main() {
             check_services
             setup_results_dir
             echo -e "${BOLD}Running tests with coverage...${NC}\n"
-            run_in_docker "python -m pytest tests/unit/ --cov=app.static_scan --cov-report=term --cov-report=html:${RESULTS_DIR}/coverage_${TIMESTAMP}"
+            run_in_docker "python -m pytest tests/unit/ --cov=src.static_scan --cov-report=term --cov-report=html:${RESULTS_DIR}/coverage_${TIMESTAMP}"
             echo -e "\n${GREEN}Coverage report saved to: ${RESULTS_DIR}/coverage_${TIMESTAMP}/index.html${NC}"
             generate_summary "${RESULTS_DIR}/test_${TIMESTAMP}.log"
             ;;
@@ -227,7 +227,7 @@ main() {
             docker run --rm -it \
                 --network "$NETWORK" \
                 -v "$(pwd)/tests:/app/tests:ro" \
-                -v "$(pwd)/app:/app/app:ro" \
+                -v "$(pwd)/src:/app/src:ro" \
                 -v "$(pwd)/${RESULTS_DIR}:/app/${RESULTS_DIR}" \
                 -e PYTHONPATH=/app \
                 -e MINIO_URL=http://minio:9000 \
