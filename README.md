@@ -6,7 +6,7 @@ A comprehensive security scanning platform for ML models that provides vulnerabi
 
 ```
 ModelTotal/
-├── app/                          # FastAPI application
+├── src/                          # FastAPI application
 │   ├── main.py                   # Application entry point
 │   ├── models.py                 # Pydantic data models
 │   ├── routes/                   # API route handlers
@@ -187,7 +187,7 @@ All scanner implementations inherit from:
 - `BaseScanner` - Provides common file discovery and filtering utilities
 - `BaseScanResult` - Ensures uniform result structure across all scanners
 
-Both base classes are defined in `app/models.py` to avoid circular dependencies.
+Both base classes are defined in `src/models.py` to avoid circular dependencies.
 
 ## Organization Separation
 
@@ -210,12 +210,37 @@ The validation system performs recursive file analysis:
 ## Trivy DB Download and Update
 
 ### Manual Database Update
-1. **Download Latest DB**: Obtain Trivy vulnerability database (.tgz/.tar.gz format)
-  - `wget https://github.com/aquasecurity/trivy-db/releases/latest/download/trivy-offline.db.tgz`
-  - Source doc: `https://trivy.dev/v0.17.2/air-gap/`
-2. **Upload via API**: Use `/trivy` endpoint to upload database file
-3. **Automatic Extraction**: System extracts to `$TRIVY_CACHE_DIR/db/`
-4. **Validation**: Ensures metadata.json and trivy.db files are present
+
+#### Step 1: Download Database (on internet-connected machine)
+```bash
+# Method 1: Using ORAS (recommended)
+brew install oras  # or apt/yum install oras
+oras pull ghcr.io/aquasecurity/trivy-db:2
+# Creates db.tar.gz in current directory (~70MB)
+
+# Method 2: Using Trivy itself
+TRIVY_TEMP_DIR=$(mktemp -d)
+trivy --cache-dir $TRIVY_TEMP_DIR image --download-db-only
+tar -czf db.tar.gz -C $TRIVY_TEMP_DIR/db metadata.json trivy.db
+rm -rf $TRIVY_TEMP_DIR
+```
+
+#### Step 2: Transfer and Deploy Database
+```bash
+# Option 1: Via API upload
+curl -X POST http://localhost:8000/trivy \
+  -F "file=@db.tar.gz"
+
+# Option 2: Direct container deployment
+docker cp db.tar.gz tasks-worker:/tmp/
+docker exec tasks-worker bash -c "cd /data/trivy-cache && tar -xzf /tmp/db.tar.gz"
+```
+
+**Notes**:
+- Database is updated every 6 hours by Aqua Security
+- Source doc: `https://trivy.dev/v0.43/docs/advanced/air-gap/`
+- System automatically extracts to `$TRIVY_CACHE_DIR/db/`
+- Validation ensures metadata.json and trivy.db files are present
 
 ### Programmatic Update
 ```python
@@ -229,42 +254,13 @@ async with ModelTotal("http://localhost:8000") as client:
 - **File Format**: `.tgz` or `.tar.gz` archive
 - **Contents**: Must contain `metadata.json` and `trivy.db`
 - **Version**: Supports Trivy DB v2 format only
-- **Size**: No explicit limits, but consider container resources
-
-## Installation
-
-## pyenv
-``` bash
-sudo apt update
-sudo apt install -y build-essential curl git zlib1g-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev libncursesw5-dev xz-utils tk-dev
-curl https://pyenv.run | bash
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-## python 3.11
-``` bash
-sudo apt install -y liblzma-dev xz-utils
-pyenv install 3.11
-pyenv local 3.11
-```
-
-## poetry
-``` bash
-poetry env use $(pyenv which python)
-poetry config virtualenvs.in-project true
-poetry install # optionally add --with-dev
-```
-
+- **Size**: ~70MB compressed, ~750MB uncompressed
+- **Important**: Without a valid database, Trivy cannot detect vulnerabilities
 
 ## How to Run
 
 ### Development Mode
-Make sure docker engine started
 ```bash
-docker-compose down
 docker-compose up --build -d
 ```
 
