@@ -60,17 +60,38 @@ class TrivyScanner:
                 generate_sbom_command.append('--skip-db-update')
 
             # Run Trivy with JSON output format for vulnerabilities
+            logger.info(f"Running Trivy vulnerability scan with command: {' '.join(scan_vulnerabilities_command[:6])}...")
             vuln_result = subprocess.run(scan_vulnerabilities_command, capture_output=True, text=True, check=True)
+            logger.info(f"Trivy vulnerability scan completed, output size: {len(vuln_result.stdout)} bytes")
             
             # Run Trivy for SBOM generation
+            logger.info(f"Running Trivy SBOM generation with command: {' '.join(generate_sbom_command[:6])}...")
             sbom_result = subprocess.run(generate_sbom_command, capture_output=True, text=True, check=True)
+            logger.info(f"Trivy SBOM generation completed, output size: {len(sbom_result.stdout)} bytes")
             
             # Parse JSON results
-            trivy_output = json.loads(vuln_result.stdout)
-            sbom_output = json.loads(sbom_result.stdout)
+            logger.info("Parsing Trivy JSON results...")
+            try:
+                trivy_output = json.loads(vuln_result.stdout)
+                sbom_output = json.loads(sbom_result.stdout)
+                logger.info("Successfully parsed Trivy JSON results")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Trivy output: {e}")
+                logger.error(f"Vuln stdout preview: {vuln_result.stdout[:500]}")
+                logger.error(f"SBOM stdout preview: {sbom_result.stdout[:500]}")
+                raise
 
-            logger.info(f"Trivy vuln result: {trivy_output}")
-            logger.info(f"Trivy SBOM result: {sbom_output}")
+            # Log summary instead of full output
+            vuln_count = 0
+            if 'Results' in trivy_output:
+                for result in trivy_output.get('Results', []):
+                    vuln_count += len(result.get('Vulnerabilities', []))
+            
+            component_count = len(sbom_output.get('components', []))
+            
+            logger.info(f"Trivy scan completed: found {vuln_count} vulnerabilities")
+            logger.info(f"Trivy SBOM generated: {component_count} components")
+            logger.debug(f"Trivy output size: vuln={len(vuln_result.stdout)} bytes, sbom={len(sbom_result.stdout)} bytes")
             
             # Extract vulnerabilities from Trivy output
             vulnerabilities = []
