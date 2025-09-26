@@ -14,14 +14,14 @@ except ImportError:
     DEFAULT_SETTINGS = None
     IssueSeverity = None
 
-from app.models import (
+from src.models import (
     Issue, IssueType, Affected, AffectedType, TechnicalDetails, 
     ModelScanResult as BaseModelScanResult, BaseScanner
 )
-from app.static_scan.exceptions import (
+from src.static_scan.exceptions import (
     ModelScanError, ScannerNotAvailableError
 )
-from app.static_scan.common import normalize_severity, get_scanner_type
+from src.static_scan.common import normalize_severity, get_scanner_type
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,8 @@ import os
 
 from celery import Celery
 from celery.result import AsyncResult
-from app.static_scan.static_scanner import StaticScanner
-from app.models import StaticScanInitiationRequest
+from src.static_scan.static_scanner import StaticScanner
+from src.models import StaticScanInitiationRequest
 
 DATABASE = "scan_results"
 

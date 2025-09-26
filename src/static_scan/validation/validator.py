@@ -4,8 +4,8 @@ import json
 import logging
 import datetime
 
-from app.clients.minio_client import MinIOClient
-from app.models import ModelArtifact, ModelFile, Manifest, ValidationResult, Verdict
+from src.clients.minio_client import MinIOClient
+from src.models import ModelArtifact, ModelFile, Manifest, ValidationResult, Verdict
 
 logger = logging.getLogger(__name__)
 

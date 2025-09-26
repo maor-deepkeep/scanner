@@ -2,8 +2,8 @@ import logging
 
 from fastapi import FastAPI
 
-from app.routes.static_scan import router as static_scan_router
-from app.routes.trivy import router as trivy_router
+from src.routes.static_scan import router as static_scan_router
+from src.routes.trivy import router as trivy_router
 
 # Configure logging
 logging.basicConfig(

@@ -17,12 +17,12 @@ except ImportError:
     ScanResult = None
 
 from datetime import datetime
-from app.models import (
+from src.models import (
     Issue, IssueType, Severity, Affected, AffectedType, TechnicalDetails,
     PickleScanResult as BasePickleScanResult, BaseScanner
 )
-from app.static_scan.exceptions import PickleScanError, ScannerNotAvailableError
-from app.static_scan.common import normalize_severity, get_scanner_type
+from src.static_scan.exceptions import PickleScanError, ScannerNotAvailableError
+from src.static_scan.common import normalize_severity, get_scanner_type
 
 logger = logging.getLogger(__name__)
 

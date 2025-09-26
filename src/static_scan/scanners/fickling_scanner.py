@@ -18,12 +18,12 @@ except ImportError:
     FICKLING_AVAILABLE = False
     fickling = None
 
-from app.models import (
+from src.models import (
     Issue, IssueType, Severity, Affected, AffectedType, TechnicalDetails,
     FicklingResult as BaseFicklingResult, BaseScanner
 )
-from app.static_scan.exceptions import FicklingScanError, ScannerNotAvailableError
-from app.static_scan.common import normalize_severity, get_scanner_type
+from src.static_scan.exceptions import FicklingScanError, ScannerNotAvailableError
+from src.static_scan.common import normalize_severity, get_scanner_type
 
 logger = logging.getLogger(__name__)
 

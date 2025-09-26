@@ -8,7 +8,7 @@ including severity normalization, issue aggregation, and other helpers.
 import logging
 from typing import List
 from collections import defaultdict
-from app.models import (
+from src.models import (
     Issue, Severity, ScannerType, AffectedType, TechnicalDetails
 )
 

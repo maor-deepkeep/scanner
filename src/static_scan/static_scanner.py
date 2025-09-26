@@ -7,7 +7,7 @@ import datetime
 import logging
 
 from typing import Callable, Optional
-from app.models import StaticScanInitiationRequest, ModelArtifact, ModelMetadata, StaticScanResult, Issue, ValidationResult, \
+from src.models import StaticScanInitiationRequest, ModelArtifact, ModelMetadata, StaticScanResult, Issue, ValidationResult, \
         TrivyScanningResult, IssueType, Verdict, Severity, ScannerType, Affected, AffectedType, LicensesScanningResult, \
         LicenseWithClassification, RiskLevel, License, ModelSecurityScanningResult, ModelScanResult, PickleScanResult, \
         FicklingResult, ModelAuditResult
