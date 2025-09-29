@@ -10,26 +10,27 @@ package-mode = false
 python = ">=3.10,<3.11"
 # Core API dependencies - use ~ for patch updates only
 fastapi = "^0.115.12"
-pydantic = "~2.11.9"
+# Allow compatibility with travelers-base which pins pydantic 2.10.6
+pydantic = "2.10.6"
 uvicorn = "^0.29.0"
-httpx = "~0.28.1"
+httpx = "~0.27.0"  # Downgraded from ~0.28.1 to satisfy deepkeep constraint (<0.28.0)
 # Core infrastructure - use ~ for patch updates only
 celery = {extras = ["pymongo", "redis"], version = "~5.5.3"}
-pymongo = "~4.15.1"
+pymongo = "~4.9.2"
 redis = "5.2.0"
 boto3 = "^1.34.0"
 python-multipart = "~0.0.20"
 # Security scanners - pin exact versions for consistency
-modelscan = {extras = ["tensorflow", "h5py"], version = "0.8.7"}
+modelscan = {extras = ["tensorflow", "h5py"], version = "0.7.6"}  # Downgraded from 0.8.7 to work with tensorflow 2.16.x
 picklescan = "0.0.31"
 fickling = {extras = ["torch"], version = "0.1.4"}
 modelaudit = {extras= ["tensorflow,h5,pytorch"], version = "0.2.3"}
 # ML frameworks - use ~ for patch updates
-tensorflow = "~2.20.0"
-torch = "~2.8.0"
+tensorflow = "~2.16.0"
+torch = "~2.3.0"
 h5py = "~3.14.0"
-onnx = "~1.19.0"
-ml-dtypes = "~0.5.3"
+onnx = "~1.17.0"
+ml-dtypes = ">=0.3.1,<0.4.0"  # Aligned with tensorflow 2.16.x requirement (was ~0.5.3)
 # Utilities - use ^ for more flexibility
 aiohttp = "^3.12.0"
 requests = "^2.30.1"
