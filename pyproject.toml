@@ -23,7 +23,7 @@ python-multipart = "~0.0.20"
 modelscan = {extras = ["tensorflow", "h5py"], version = "0.8.7"}
 picklescan = "0.0.31"
 fickling = {extras = ["torch"], version = "0.1.4"}
-modelaudit = {extras = ["all"], version = "0.2.6"}
+modelaudit = {extras= ["tensorflow,h5,pytorch"], version = "0.2.3"}
 # ML frameworks - use ~ for patch updates
 tensorflow = "~2.20.0"
 torch = "~2.8.0"
