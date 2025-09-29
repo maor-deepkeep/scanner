@@ -228,3 +228,6 @@ test_model_modified/__bundle__/
 
 # VS Code settings
 .vscode/
+
+# Models folder
+models/
