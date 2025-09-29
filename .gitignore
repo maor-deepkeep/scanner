@@ -224,3 +224,7 @@ scan_report.html
 # Test model directories
 test_model/
 test_model_verified/
+test_model_modified/__bundle__/
+
+# VS Code settings
+.vscode/
