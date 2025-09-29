@@ -138,6 +138,7 @@ celerybeat.pid
 .env
 .envrc
 .venv
+.venv_app_data
 env/
 venv/
 ENV/
@@ -214,3 +215,12 @@ models
 claude.md
 test-results/
 scan_report.html
+
+# Archive files
+*.zip
+*.tgz
+*.tar.gz
+
+# Test model directories
+test_model/
+test_model_verified/
