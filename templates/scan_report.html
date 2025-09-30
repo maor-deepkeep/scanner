@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Security Scan Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+        }
+        .header .meta {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .section {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .section-header {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-header:hover {
+            background: #e9ecef;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-critical {
+            background: #ff4757;
+            color: white;
+        }
+        .badge-high {
+            background: #ff6348;
+            color: white;
+        }
+        .badge-medium {
+            background: #ffa502;
+            color: white;
+        }
+        .badge-low {
+            background: #7bed9f;
+            color: #2c3e50;
+        }
+        .badge-info {
+            background: #70a1ff;
+            color: white;
+        }
+        .badge-none {
+            background: #95afc0;
+            color: white;
+        }
+        .badge-warning {
+            background: #ff6348;
+            color: white;
+        }
+        .badge-danger {
+            background: #ee5a24;
+            color: white;
+        }
+        .arrow {
+            transition: transform 0.3s;
+            font-size: 20px;
+        }
+        .arrow.collapsed {
+            transform: rotate(-90deg);
+        }
+        .section-content {
+            padding: 20px;
+            display: none;
+        }
+        .section-content.expanded {
+            display: block;
+        }
+        .issue-card {
+            border-left: 4px solid #dee2e6;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .issue-card.critical {
+            border-left-color: #ff4757;
+            background: #fff5f5;
+        }
+        .issue-card.high {
+            border-left-color: #ff6348;
+            background: #fff8f5;
+        }
+        .issue-card.medium {
+            border-left-color: #ffa502;
+            background: #fffbf0;
+        }
+        .issue-card.low {
+            border-left-color: #7bed9f;
+            background: #f0fff5;
+        }
+        .issue-card.malicious {
+            border-left-color: #ee5a24;
+            background: #fff5f5;
+        }
+        .issue-card.tamper {
+            border-left-color: #a55eea;
+            background: #f8f5ff;
+        }
+        .issue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        .issue-id {
+            font-weight: 400;
+            color: #6c757d;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+        .issue-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 8px 0;
+            font-size: 16px;
+        }
+        .issue-desc {
+            color: #495057;
+            margin: 10px 0;
+            line-height: 1.5;
+            background: rgba(0,0,0,0.02);
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .issue-meta {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+            border: 1px solid #e9ecef;
+        }
+        .issue-meta-item {
+            margin: 8px 0;
+            display: flex;
+            align-items: flex-start;
+        }
+        .issue-meta-label {
+            font-weight: 600;
+            color: #495057;
+            display: inline-block;
+            min-width: 140px;
+            flex-shrink: 0;
+        }
+        .affected-list {
+            margin-left: 0;
+            padding-left: 20px;
+        }
+        .affected-item {
+            background: white;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            list-style-type: disc;
+        }
+        .references {
+            margin-top: 10px;
+        }
+        .reference-link {
+            display: inline-block;
+            color: #007bff;
+            text-decoration: none;
+            margin-right: 10px;
+            font-size: 13px;
+        }
+        .reference-link:hover {
+            text-decoration: underline;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.4;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .summary-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid #70a1ff;
+        }
+        .summary-item.danger {
+            border-left-color: #ff4757;
+        }
+        .summary-item.warning {
+            border-left-color: #ffa502;
+        }
+        .summary-item.success {
+            border-left-color: #7bed9f;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Model Security Scan Report</h1>
+        <div class="meta">
+            <div>Model: {{ model_name }} (v{{ model_version }})</div>
+            <div>Model ID: {{ model_id }}</div>
+            <div>Final Verdict: <span class="badge {% if final_verdict == 'CRITICAL' %}badge-critical{% elif final_verdict == 'HIGH' %}badge-high{% elif final_verdict == 'MEDIUM' %}badge-medium{% elif final_verdict == 'LOW' %}badge-low{% elif final_verdict == 'NONE' %}badge-none{% else %}badge-info{% endif %}">{{ final_verdict }}</span></div>
+            <div>Operation ID: {{ operation_id }}</div>
+            <div>Generated: {{ timestamp }}</div>
+        </div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_issues }}</div>
+            <div class="stat-label">Total Issues</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ vulnerability_count }}</div>
+            <div class="stat-label">Vulnerabilities</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ malicious_count }}</div>
+            <div class="stat-label">Malicious Code</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ tamper_count }}</div>
+            <div class="stat-label">Tampering</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ license_count }}</div>
+            <div class="stat-label">License Issues</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ severity_counts.critical }}</div>
+            <div class="stat-label">Critical</div>
+        </div>
+    </div>
+    
+    {% if vulnerabilities %}
+    <div class="section">
+        <div class="section-header has-issues">
+            <div class="section-title">
+                🔍 Vulnerabilities
+                <span class="badge badge-danger">{{ vulnerability_count }}</span>
+            </div>
+            <span class="arrow">▼</span>
+        </div>
+        <div class="section-content">
+            {% for issue in vulnerabilities %}
+            <div class="issue-card {{ issue.severity }}">
+                <div class="issue-header">
+                    <div class="issue-id">{{ issue.id }}</div>
+                    <span class="badge badge-{{ issue.severity }}">{{ issue.severity|upper }}</span>
+                </div>
+                {% if issue.title %}
+                <div class="issue-title">{{ issue.title }}</div>
+                {% endif %}
+                <div class="issue-desc">{{ issue.description }}</div>
+                
+                {% if issue.cvss %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">CVSS Score:</span>
+                        {% for source, scores in issue.cvss.items() %}
+                            {{ source }}: {{ scores.V3Score }} 
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.affected %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Affected:</span>
+                        <ul class="affected-list">
+                        {% for item in issue.affected %}
+                        <li class="affected-item">
+                            {{ item.ref }}
+                            {% if item.version %} (v{{ item.version }}){% endif %}
+                            {% if item.location %} at {{ item.location }}{% endif %}
+                            {% if item.line_number %} (line {{ item.line_number }}){% endif %}
+                        </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.recommendation %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Recommendation:</span>
+                        {{ issue.recommendation }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Detected by:</span>
+                        {% if issue.detected_by %}
+                            {% if issue.detected_by is iterable and issue.detected_by is not string %}
+                            <ul class="affected-list">
+                                {% for scanner in issue.detected_by %}
+                                <li class="affected-item">{{ scanner|upper }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            {{ issue.detected_by|upper }}
+                            {% endif %}
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Detected at:</span>
+                        {{ issue.detected_at if issue.detected_at else 'N/A' }}
+                    </div>
+                </div>
+                
+                {% if issue.references %}
+                <div class="references">
+                    {% for ref in issue.references[:3] %}
+                    <a href="{{ ref }}" class="reference-link" target="_blank">Reference</a>
+                    {% endfor %}
+                    {% if issue.references|length > 3 %}
+                    <span class="reference-link">+{{ issue.references|length - 3 }} more</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if malicious_code %}
+    <div class="section">
+        <div class="section-header has-issues">
+            <div class="section-title">
+                ⚠️ Malicious Code Detection
+                <span class="badge badge-danger">{{ malicious_count }}</span>
+            </div>
+            <span class="arrow">▼</span>
+        </div>
+        <div class="section-content">
+            {% for issue in malicious_code %}
+            <div class="issue-card malicious">
+                <div class="issue-header">
+                    <div class="issue-id">ID: {{ issue.id }}</div>
+                    <span class="badge badge-danger">{{ issue.severity|upper if issue.severity else 'HIGH' }}</span>
+                </div>
+                
+                {% if issue.title %}
+                <div class="issue-title">{{ issue.title }}</div>
+                {% endif %}
+                
+                <div class="issue-desc">{{ issue.description }}</div>
+                
+                <div class="issue-meta">
+                    {% if issue.type %}
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Type:</span>
+                        {{ issue.type }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.detected_by %}
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Scanners:</span>
+                        {% if issue.detected_by is iterable and issue.detected_by is not string %}
+                        <ul class="affected-list">
+                            {% for scanner in issue.detected_by %}
+                            <li class="affected-item">{{ scanner|upper }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        {{ issue.detected_by|upper }}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.detected_at %}
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Detected at:</span>
+                        {{ issue.detected_at }}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if issue.affected %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Affected Files:</span>
+                        <ul class="affected-list">
+                        {% for item in issue.affected %}
+                        <li class="affected-item">
+                            {% if item.ref %}{{ item.ref }}{% endif %}
+                            {% if item.version %} (v{{ item.version }}){% endif %}
+                            {% if item.location %} at {{ item.location }}{% endif %}
+                            {% if item.line_number %} (line {{ item.line_number }}){% endif %}
+                        </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.technical_details %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Technical Details:</span>
+                        <div style="margin-left: 10px;">
+                            {% for key, value in issue.technical_details.items() %}
+                                {% if value is not none and not key.startswith('_') %}
+                                    {% if value is iterable and value is not string %}
+                                        {% if value is mapping %}
+                                            <div><strong>{{ key.replace('_', ' ').title() }}:</strong>
+                                                <ul style="margin: 5px 0; padding-left: 20px;">
+                                                {% for k, v in value.items() %}
+                                                    <li>{{ k }}: {{ v }}</li>
+                                                {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% else %}
+                                            <div><strong>{{ key.replace('_', ' ').title() }}:</strong>
+                                                <ul style="margin: 5px 0; padding-left: 20px;">
+                                                {% for item in value %}
+                                                    <li><code>{{ item }}</code></li>
+                                                {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div><strong>{{ key.replace('_', ' ').title() }}:</strong> <code>{{ value }}</code></div>
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <!-- No technical details available -->
+                {% endif %}
+                
+                {% if issue.recommendation %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Recommendation:</span>
+                        <div style="margin-left: 10px; font-style: italic;">{{ issue.recommendation }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.references and issue.references|length > 0 %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">References:</span>
+                        {% for ref in issue.references %}
+                        <a href="{{ ref }}" class="reference-link" target="_blank">{{ ref }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.cvss and issue.cvss|length > 0 %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">CVSS:</span>
+                        {% for source, scores in issue.cvss.items() %}
+                            {{ source }}: {{ scores }}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if tamper_issues %}
+    <div class="section">
+        <div class="section-header has-issues">
+            <div class="section-title">
+                🔐 Tampering Detection
+                <span class="badge badge-warning">{{ tamper_count }}</span>
+            </div>
+            <span class="arrow">▼</span>
+        </div>
+        <div class="section-content">
+            {% for issue in tamper_issues %}
+            <div class="issue-card tamper">
+                <div class="issue-header">
+                    <div class="issue-id">{{ issue.id }}</div>
+                    <span class="badge badge-warning">{{ issue.severity|upper if issue.severity else 'MEDIUM' }}</span>
+                </div>
+                {% if issue.title %}
+                <div class="issue-title">{{ issue.title }}</div>
+                {% endif %}
+                <div class="issue-desc">{{ issue.description }}</div>
+                
+                {% if issue.affected %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Affected Files:</span>
+                        <ul class="affected-list">
+                        {% for item in issue.affected %}
+                        <li class="affected-item">{{ item.file if item.file else item }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.detected_by %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Detected by:</span>
+                        {% if issue.detected_by is iterable and issue.detected_by is not string %}
+                        <ul class="affected-list">
+                            {% for scanner in issue.detected_by %}
+                            <li class="affected-item">{{ scanner|upper }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        {{ issue.detected_by|upper }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if license_issues %}
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">
+                📜 License Issues
+                <span class="badge badge-info">{{ license_count }}</span>
+            </div>
+            <span class="arrow collapsed">▼</span>
+        </div>
+        <div class="section-content">
+            {% for issue in license_issues %}
+            <div class="issue-card low">
+                <div class="issue-header">
+                    <div class="issue-id">{{ issue.id }}</div>
+                    <span class="badge badge-info">LICENSE</span>
+                </div>
+                {% if issue.title %}
+                <div class="issue-title">{{ issue.title }}</div>
+                {% endif %}
+                <div class="issue-desc">{{ issue.description }}</div>
+                
+                {% if issue.affected %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Package:</span>
+                        <ul class="affected-list">
+                        {% for item in issue.affected %}
+                        <li class="affected-item">{{ item.ref if item.ref else item }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if risk_issues %}
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">
+                ⚠️ Risk Issues
+                <span class="badge badge-warning">{{ risk_count }}</span>
+            </div>
+            <span class="arrow collapsed">▼</span>
+        </div>
+        <div class="section-content">
+            {% for issue in risk_issues %}
+            <div class="issue-card {{ issue.severity }}">
+                <div class="issue-header">
+                    <div class="issue-id">{{ issue.id }}</div>
+                    <span class="badge badge-{{ issue.severity }}">{{ issue.severity|upper }}</span>
+                </div>
+                {% if issue.title %}
+                <div class="issue-title">{{ issue.title }}</div>
+                {% endif %}
+                <div class="issue-desc">{{ issue.description }}</div>
+                
+                {% if issue.affected %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Affected:</span>
+                        <ul class="affected-list">
+                        {% for item in issue.affected %}
+                        <li class="affected-item">
+                            {{ item.ref }}
+                            {% if item.location %} at {{ item.location }}{% endif %}
+                            {% if item.line_number %} (line {{ item.line_number }}){% endif %}
+                        </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if issue.technical_details %}
+                <div class="issue-meta">
+                    <div class="issue-meta-item">
+                        <span class="issue-meta-label">Technical Details:</span>
+                        <div class="tech-details">
+                            {% for key, value in issue.technical_details.items() %}
+                                <div><strong>{{ key }}:</strong> {{ value }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if ml_bom %}
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">
+                🤖 ML-BOM
+            </div>
+            <span class="arrow collapsed">▼</span>
+        </div>
+        <div class="section-content">
+            <pre>{{ ml_bom_json }}</pre>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">
+                📄 Raw JSON Output
+            </div>
+            <span class="arrow collapsed">▼</span>
+        </div>
+        <div class="section-content">
+            <pre>{{ raw_json }}</pre>
+        </div>
+    </div>
+    
+    <script>
+        document.querySelectorAll('.section-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const content = header.nextElementSibling;
+                const arrow = header.querySelector('.arrow');
+                content.classList.toggle('expanded');
+                arrow.classList.toggle('collapsed');
+            });
+        });
+        
+        // Auto-expand sections with issues
+        document.querySelectorAll('.has-issues').forEach(section => {
+            section.nextElementSibling.classList.add('expanded');
+            section.querySelector('.arrow').classList.remove('collapsed');
+        });
+    </script>
+</body>
+</html>

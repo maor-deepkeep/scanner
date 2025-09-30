@@ -214,7 +214,6 @@ models
 .DS_Store
 claude.md
 test-results/
-scan_report.html
 
 # Archive files
 *.zip
