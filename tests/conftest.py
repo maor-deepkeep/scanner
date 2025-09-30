@@ -17,9 +17,24 @@ def docker_compose_setup():
     """
     Fixture to set up and tear down Docker Compose environment for integration tests.
     """
-    print("\n🐳 Starting Docker Compose services for integration tests...")
-    
-    # Start Docker Compose services
+
+    print("🧹 Cleaning up any existing services and networks first")
+    cleanup_result = subprocess.run(
+        ["docker-compose", "down", "--volumes", "--remove-orphans"],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parent.parent
+    )
+
+    print("🧹 Removing the problematic network if it exists")
+    subprocess.run(
+        ["docker", "network", "rm", "backend_network"],
+        capture_output=True,
+        text=True
+    )
+    # Ignore errors if network doesn't exist
+
+    print("🛠️ Starting Docker Compose services")
     result = subprocess.run(
         ["docker-compose", "up", "-d", "--build"],
         capture_output=True,
@@ -59,14 +74,19 @@ def docker_compose_setup():
     
     yield
     
-    # Cleanup
+    # Cleanup: Stop and remove containers, networks, and volumes
     print("\n🧹 Cleaning up Docker Compose services...")
-    subprocess.run(
-        ["docker-compose", "down", "-v"],
+    cleanup_result = subprocess.run(
+        ["docker-compose", "down", "--volumes", "--remove-orphans"],
         capture_output=True,
+        text=True,
         cwd=Path(__file__).parent.parent
     )
-    print("✅ Cleanup completed!")
+    
+    if cleanup_result.returncode != 0:
+        print(f"Warning: Failed to clean up Docker Compose: {cleanup_result.stderr}")
+    else:
+        print("✅ Cleanup completed!")
 
 
 @pytest.fixture

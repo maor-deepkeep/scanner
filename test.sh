@@ -56,8 +56,23 @@ check_services() {
     if ! docker-compose ps | grep -q "Up"; then
         echo -e "${RED}Error: Docker services are not running${NC}"
         echo -e "${YELLOW}Starting services...${NC}"
-        docker-compose up -d
-        sleep 5
+        
+        # Clean up existing services and networks first
+        echo -e "${CYAN}Cleaning up existing Docker resources...${NC}"
+        docker-compose down --volumes --remove-orphans 2>/dev/null || true
+        
+        # Remove the problematic network if it exists
+        docker network rm backend_network 2>/dev/null || true
+        
+        # Start services fresh
+        docker-compose up -d --build
+        sleep 10
+        
+        # Verify services are running
+        if ! docker-compose ps | grep -q "Up"; then
+            echo -e "${RED}Failed to start Docker services${NC}"
+            exit 1
+        fi
     fi
     
     echo -e "${GREEN}✓ Docker services are running${NC}"

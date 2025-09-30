@@ -266,12 +266,26 @@ docker-compose up --build -d
 
 ### Client Testing
 ```bash
-python3 test.py /path/to/model/file
+python3 test.py http://path/to/model/file.zip
+```
+Or
+```
+poetry run test.py http://path/to/model/file.zip
+```
+
+### Unit Tests
+```bash
+test.sh all
+```
 ```
 
 ### Integration tests
 ```bash
 pytest -svx tests/test_integration.py 
+```
+Or
+```bash
+poetry run pytest -svx tests/test_integration.py 
 ```
 
 The system will be available at `http://localhost:8000` with automatic API documentation at `http://localhost:8000/docs`.

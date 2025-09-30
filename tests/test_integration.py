@@ -2,7 +2,7 @@ import pytest
 import os
 import tempfile
 import zipfile
-from microservices.model_scanner.src.schemas.models import IssueType
+from src.models import IssueType
 
 class TestModelTotalIntegration:
     """
