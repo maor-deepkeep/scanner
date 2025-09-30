@@ -54,8 +54,7 @@ check_services() {
     echo -e "${YELLOW}Checking Docker services...${NC}"
     
     if ! docker-compose ps | grep -q "Up"; then
-        echo -e "${RED}Error: Docker services are not running${NC}"
-        echo -e "${YELLOW}Starting services...${NC}"
+        echo -e "${YELLOW}Docker services are not running. Starting services...${NC}"
         
         # Clean up existing services and networks first
         echo -e "${CYAN}Cleaning up existing Docker resources...${NC}"
