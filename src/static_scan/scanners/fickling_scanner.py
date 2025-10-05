@@ -6,13 +6,11 @@ import struct
 import zipfile
 import tarfile
 from datetime import datetime
-from io import BytesIO
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 
 try:
     import fickling
     import fickling.exception
-    from fickling.polyglot import find_file_properties
     FICKLING_AVAILABLE = True
 except ImportError:
     FICKLING_AVAILABLE = False
