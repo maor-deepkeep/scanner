@@ -235,36 +235,14 @@ class BaseScanner(ABC):
     utilities that all scanners can leverage.
     """
     
-    # File extension definitions (consolidated from file_extensions.py)
-    PICKLE_EXTENSIONS: Set[str] = {
-        '.pkl', '.pickle', '.p', '.joblib', '.dat', '.data'
-    }
-    
-    ML_MODEL_EXTENSIONS: Set[str] = {
-        # PyTorch
-        '.pt', '.pth', '.bin', '.ckpt',
-        # TensorFlow/Keras
-        '.h5', '.hdf5', '.pb', '.keras',
-        # ONNX
-        '.onnx',
-        # SafeTensors
-        '.safetensors',
-        # TensorFlow Lite
-        '.tflite',
-        # Core ML
-        '.mlmodel',
-        # Other
-        '.model', '.weights'
-    }
-    
-    # Combined sets for convenience
-    SERIALIZED_EXTENSIONS: Set[str] = PICKLE_EXTENSIONS | ML_MODEL_EXTENSIONS
-    
-    # Archive extensions
-    ARCHIVE_EXTENSIONS: Set[str] = {
-        '.zip', '.tar', '.tar.gz', '.tar.bz2', '.tar.xz', '.tgz'
-    }
-    
+    # Import extension definitions from centralized module
+    from src.static_scan.file_extensions import (
+        PICKLE_EXTENSIONS,
+        ML_MODEL_EXTENSIONS,
+        SERIALIZED_EXTENSIONS,
+        FileType
+    )
+
     # Trusted ML frameworks (used when trusted filter is enabled)
     TRUSTED_MODULES: Set[str] = {
         # Core ML frameworks
@@ -321,11 +299,10 @@ class BaseScanner(ABC):
         """Check if a file contains serialized data (pickle or ML model)."""
         return any(filepath.lower().endswith(ext) for ext in cls.SERIALIZED_EXTENSIONS)
     
-    @classmethod
-    def is_archive_file(cls, filepath: str) -> bool:
-        """Check if a file is an archive."""
-        return any(filepath.lower().endswith(ext) for ext in cls.ARCHIVE_EXTENSIONS)
-    
+    def is_archive_file(self, filepath: str) -> bool:
+        """Check if a file is an archive by checking magic bytes."""
+        return self.is_zip_archive(filepath) or self.is_tar_archive(filepath)
+
     def is_zip_archive(self, file_path: str) -> bool:
         """Check if file is a ZIP archive by trying to open it."""
         try:
@@ -333,7 +310,7 @@ class BaseScanner(ABC):
                 return True
         except (zipfile.BadZipFile, IsADirectoryError):
             return False
-    
+
     def is_tar_archive(self, file_path: str) -> bool:
         """Check if file is a TAR archive by trying to open it."""
         try:
@@ -341,7 +318,28 @@ class BaseScanner(ABC):
                 return True
         except (tarfile.TarError, IsADirectoryError):
             return False
-    
+
+    def classify_file(self, filepath: str) -> 'FileType':
+        """
+        Classify a file by checking magic bytes (not just extensions).
+
+        Args:
+            filepath: Path to the file
+
+        Returns:
+            FileType enum value
+        """
+        # Check archives first (uses magic bytes)
+        if self.is_zip_archive(filepath):
+            return self.FileType.ZIP
+        elif self.is_tar_archive(filepath):
+            return self.FileType.TAR
+        # Then check serialized files (uses extensions)
+        elif self.is_serialized_file(filepath):
+            return self.FileType.SERIALIZED
+        else:
+            return self.FileType.OTHER
+
     def is_trusted_module_issue(self, module_or_text: str) -> bool:
         """
         Check if an issue is from a trusted module and should be filtered.

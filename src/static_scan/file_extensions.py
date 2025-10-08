@@ -5,15 +5,22 @@ This module contains all file extension constants used across different scanners
 to avoid duplication and ensure consistency.
 """
 
+from enum import Enum
+
 # Pickle and serialized object formats
 PICKLE_EXTENSIONS = {
-    '.pkl', '.pickle', '.p', '.joblib', '.dat', '.data'
+    # Standard pickle formats
+    '.pkl', '.pickle', '.p', '.joblib', '.dat', '.data',
+    # PyTorch (uses pickle internally)
+    '.pt', '.pth',
+    # NumPy (uses pickle for object arrays)
+    '.npy', '.npz'
 }
 
 # Machine Learning model formats
 ML_MODEL_EXTENSIONS = {
-    # PyTorch
-    '.pt', '.pth', '.bin', '.ckpt',
+    # PyTorch (checkpoint formats)
+    '.bin', '.ckpt',
     # TensorFlow/Keras
     '.h5', '.hdf5', '.pb', '.keras',
     # ONNX
@@ -31,6 +38,15 @@ ML_MODEL_EXTENSIONS = {
 # Combined sets for convenience
 SERIALIZED_EXTENSIONS = PICKLE_EXTENSIONS | ML_MODEL_EXTENSIONS
 SCANNABLE_EXTENSIONS = SERIALIZED_EXTENSIONS  # Alias for backward compatibility
+
+
+class FileType(Enum):
+    """Enumeration of file types for scanning classification."""
+    ZIP = 'zip'
+    TAR = 'tar'
+    SERIALIZED = 'serialized'
+    OTHER = 'other'
+
 
 def is_pickle_file(filepath: str) -> bool:
     """Check if a file is a pickle format."""
