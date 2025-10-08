@@ -95,52 +95,30 @@ class TestPickleScanScanner:
     
     def test_scan_numpy_files(self, scanner, temp_dir):
         """Test scanning of NumPy array files."""
-        try:
-            import numpy as np
-        except ImportError:
-            pytest.skip("NumPy not installed")
-        
-        # Create malicious numpy file with object array containing exploit
-        # This is similar to picklescan's own test approach
-        class MaliciousPayload:
-            def __reduce__(self):
-                import os
-                return (os.system, ('echo malicious',))
-        
-        # Create object array with malicious payload
-        malicious_npy = os.path.join(temp_dir, "malicious.npy")
-        try:
-            np.save(malicious_npy, np.array([MaliciousPayload()], dtype=object), allow_pickle=True)
-        except Exception as e:
-            # If numpy save fails, skip the test
-            pytest.skip(f"Cannot create numpy test file: {e}")
-        
-        # Create benign numpy files
-        benign_int_npy = os.path.join(temp_dir, "benign_int.npy")
-        np.save(benign_int_npy, np.array([1, 2, 3, 4], dtype=int))
-        
-        # Create npz with mixed content
-        mixed_npz = os.path.join(temp_dir, "mixed.npz")
-        np.savez(mixed_npz, 
-                 safe_data=np.array([1, 2, 3], dtype=int),
-                 object_data=np.array(["string1", "string2"], dtype=object))
-        
+        numpy_exploits = generate_numpy_exploits()
+
+        # Write NumPy exploit files
+        for name, file_bytes in numpy_exploits.items():
+            ext = '.npz' if 'npz' in name else '.npy'
+            file_path = os.path.join(temp_dir, f"{name}{ext}")
+            with open(file_path, 'wb') as f:
+                f.write(file_bytes)
+
         # Scan directory
         result = scanner.scan(temp_dir)
-        
-        # The malicious.npy should be detected if picklescan can handle it
-        # However, due to numpy 2.x compatibility issues, we may get errors
-        # So we check for either detection or graceful handling
-        assert result is not None
-        
-        # If files were scanned successfully, check for detection
-        if result.files_scanned and not result.errors:
-            # Should detect the malicious payload in object array
-            assert result.verdict in ["SUSPICIOUS", "MALICIOUS"]
-            assert result.issues_count > 0
-        else:
-            # If there were errors (numpy compatibility), just ensure it didn't crash
-            assert isinstance(result.errors, list)
+
+        # Should handle numpy files gracefully
+        assert result is not None, "Expected scan result to be returned"
+
+        # Should scan the numpy files
+        assert result.files_scanned, "Expected files to be scanned"
+        assert len(result.files_scanned) > 0, f"Expected numpy files to be scanned, got {result.files_scanned}"
+
+        # Should detect malicious numpy exploits
+        assert result.verdict in ["SUSPICIOUS", "MALICIOUS"], \
+            f"Expected malicious verdict for numpy exploits, got {result.verdict}"
+        assert result.issues_count > 0, f"Expected issues to be detected, got {result.issues_count}"
+        assert result.affected_files, f"Expected affected_files to be non-empty"
     
     def test_scan_empty_directory(self, scanner, temp_dir):
         """Test scanning empty directory."""
@@ -469,3 +447,141 @@ class TestPickleScanScanner:
         assert isinstance(result.affected_files, list)
         assert hasattr(result, 'scanner_data')
         assert isinstance(result.scanner_data, dict)
+
+    def test_pickle_in_zip_in_tar(self, scanner, temp_dir):
+        """Test: Pickle → ZIP → TAR nested detection."""
+        import io
+        import tarfile
+        import zipfile
+
+        # Create malicious pickle
+        exploit = generate_malicious_pickles()
+        pickle_bytes = list(exploit.values())[0]
+
+        # Create ZIP containing pickle
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as zf:
+            zf.writestr('malicious.pkl', pickle_bytes)
+        zip_bytes = zip_buffer.getvalue()
+
+        # Create TAR containing ZIP
+        tar_path = os.path.join(temp_dir, "outer.tar")
+        with tarfile.open(tar_path, 'w') as tar:
+            zip_info = tarfile.TarInfo('inner.zip')
+            zip_info.size = len(zip_bytes)
+            tar.addfile(zip_info, io.BytesIO(zip_bytes))
+
+        # Should detect pickle inside nested archives (TAR → ZIP → pickle)
+        result = scanner.scan(temp_dir)
+
+        assert result.verdict in ["SUSPICIOUS", "MALICIOUS"], f"Expected SUSPICIOUS or MALICIOUS, got {result.verdict}"
+        assert result.issues_count > 0, f"Expected issues_count > 0, got {result.issues_count}"
+        assert result.affected_files, "Expected affected_files to be non-empty"
+        # Verify the full hierarchical path exists: "outer.tar:inner.zip:malicious.pkl"
+        assert any('outer.tar:inner.zip:malicious.pkl' in str(f) for f in result.affected_files), \
+            f"Expected 'outer.tar:inner.zip:malicious.pkl' in {result.affected_files}"
+
+    def test_four_level_deep_archive(self, scanner, temp_dir):
+        """Test: 5-level deep archives exceed max_depth=3 and stop gracefully."""
+        import io
+        import zipfile
+
+        pickle_bytes = list(generate_malicious_pickles().values())[0]
+
+        # depth 1: pickle in zip
+        zip1 = io.BytesIO()
+        with zipfile.ZipFile(zip1, 'w') as z:
+            z.writestr('evil.pkl', pickle_bytes)
+
+        # depth 2: zip1 in zip2
+        zip2 = io.BytesIO()
+        with zipfile.ZipFile(zip2, 'w') as z:
+            z.writestr('d1.zip', zip1.getvalue())
+
+        # depth 3: zip2 in zip3
+        zip3 = io.BytesIO()
+        with zipfile.ZipFile(zip3, 'w') as z:
+            z.writestr('d2.zip', zip2.getvalue())
+
+        # depth 4: zip3 in zip4
+        zip4 = io.BytesIO()
+        with zipfile.ZipFile(zip4, 'w') as z:
+            z.writestr('d3.zip', zip3.getvalue())
+
+        # depth 5: zip4 in zip5 (exceeds max_depth=3)
+        zip5_path = os.path.join(temp_dir, 'deep.zip')
+        with zipfile.ZipFile(zip5_path, 'w') as z:
+            z.writestr('d4.zip', zip4.getvalue())
+
+        # Should handle gracefully by stopping at max depth
+        result = scanner.scan(temp_dir)
+
+        assert result is not None, "Expected scan result to be returned"
+        assert hasattr(result, 'verdict'), "Expected result to have verdict attribute"
+        # Should be SAFE because it stopped before reaching the malicious pickle
+        assert result.verdict == "SAFE", f"Expected SAFE (stopped at max depth), got {result.verdict}"
+        assert result.issues_count == 0, f"Expected 0 issues (didn't reach pickle), got {result.issues_count}"
+        # Should have an error indicating max depth was exceeded
+        assert result.errors, "Expected errors list to be non-empty when max depth exceeded"
+        assert any('Max archive depth' in str(e) for e in result.errors), \
+            f"Expected 'Max archive depth' error in {result.errors}"
+
+    def test_text_file_with_pkl_extension(self, scanner, temp_dir):
+        """Test: .pkl file that's actually text (should be tracked as error)."""
+        fake_path = os.path.join(temp_dir, 'fake.pkl')
+        with open(fake_path, 'w') as f:
+            f.write('This is just text, not pickle!')
+
+        result = scanner.scan(temp_dir)
+
+        # Should scan the file (has .pkl extension) but fail to parse
+        assert result is not None, "Expected scan result to be returned"
+        assert result.files_scanned, "Expected files_scanned to be non-empty"
+        assert 'fake.pkl' in [os.path.basename(f) for f in result.files_scanned], \
+            f"Expected 'fake.pkl' in files_scanned: {result.files_scanned}"
+        # Should be in errors (parsing failure)
+        assert result.errors, "Expected errors list to be non-empty for invalid pickle file"
+        assert any('fake.pkl' in str(e) for e in result.errors), \
+            f"Expected 'fake.pkl' in errors: {result.errors}"
+        # Verdict should be SAFE (no malicious content, just parse error)
+        assert result.verdict == "SAFE", f"Expected SAFE verdict, got {result.verdict}"
+
+    def test_python_file_skipped(self, scanner, temp_dir):
+        """Test: Python source file is not scanned."""
+        py_path = os.path.join(temp_dir, 'module.py')
+        with open(py_path, 'w') as f:
+            f.write('''import os
+import sys
+
+class Exploit:
+    def run(self):
+        os.system('echo pwned')
+''')
+
+        result = scanner.scan(temp_dir)
+
+        assert result is not None, "Expected scan result to be returned"
+        scanned = [os.path.basename(f) for f in result.files_scanned]
+        assert 'module.py' not in scanned, f"Python file should not be scanned, but found in: {scanned}"
+        assert result.verdict == "SAFE", f"Expected SAFE verdict, got {result.verdict}"
+        assert result.issues_count == 0, f"Expected 0 issues, got {result.issues_count}"
+
+    def test_binary_garbage_with_pkl_extension(self, scanner, temp_dir):
+        """Test: Random binary with .pkl extension (parsing error tracked)."""
+        garbage_path = os.path.join(temp_dir, 'garbage.pkl')
+        with open(garbage_path, 'wb') as f:
+            f.write(b'\xff\xfe\xfd\xfc' * 100)
+
+        result = scanner.scan(temp_dir)
+
+        # Should attempt to scan (has .pkl extension) but fail to parse
+        assert result is not None, "Expected scan result to be returned"
+        assert result.files_scanned, "Expected files_scanned to be non-empty"
+        assert 'garbage.pkl' in [os.path.basename(f) for f in result.files_scanned], \
+            f"Expected 'garbage.pkl' in files_scanned: {result.files_scanned}"
+        # Parsing error should be tracked
+        assert result.errors, "Expected errors list to be non-empty for invalid pickle file"
+        assert any('garbage.pkl' in str(e) for e in result.errors), \
+            f"Expected 'garbage.pkl' in errors: {result.errors}"
+        # No malicious content found (just parsing error)
+        assert result.verdict == "SAFE", f"Expected SAFE verdict, got {result.verdict}"
