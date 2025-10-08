@@ -6,7 +6,6 @@ from typing import List
 try:
     from modelscan.modelscan import ModelScan
     from modelscan.settings import DEFAULT_SETTINGS
-    from modelscan.issues import IssueSeverity
     MODELSCAN_AVAILABLE = True
 except ImportError:
     MODELSCAN_AVAILABLE = False
