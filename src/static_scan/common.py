@@ -6,6 +6,7 @@ including severity normalization, issue aggregation, and other helpers.
 """
 
 import logging
+import re
 from typing import List
 from collections import defaultdict
 from src.models import (
@@ -13,6 +14,24 @@ from src.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def strip_temp_path(path: str) -> str:
+    """
+    Remove temporary path prefix from file references.
+
+    Example: /tmp/tmpxxx/file.pkl:path/data.pkl -> file.pkl:path/data.pkl
+
+    Args:
+        path: File path potentially containing temp directory prefix
+
+    Returns:
+        Cleaned path without temp directory prefix
+    """
+    if not path:
+        return path
+    # Remove /tmp/xxxxx/ prefix while preserving archive paths (file.bin:path/file.pkl)
+    return re.sub(r'^/tmp/[^/]+/', '', path)
 
 
 # Severity normalization mappings for different scanners
@@ -87,10 +106,11 @@ def aggregate_issues(issues: List[Issue]) -> List[Issue]:
     if not issues:
         return []
 
-    # Scanner priority for title/description selection
+    # Scanner priority for title/description selection (lower number = higher priority)
+    # ModelAudit usually has more detailed info in title and description
     scanner_priority = {
-        ScannerType.MODELSCAN: 1,
-        ScannerType.MODELAUDIT: 2,
+        ScannerType.MODELAUDIT: 1,  # Highest priority - most detailed
+        ScannerType.MODELSCAN: 2,
         ScannerType.PICKLESCAN: 3,
         ScannerType.FICKLING: 4
     }
