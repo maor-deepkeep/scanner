@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 from datetime import datetime
 from typing import List, Any
@@ -25,6 +26,38 @@ logger = logging.getLogger(__name__)
 
 class ModelAuditResult(BaseModelAuditResult):
     """ModelAudit specific result with full to_issues() implementation."""
+
+    def _split_location_refs(self, location: str) -> List[str]:
+        """
+        Split location string into individual file references.
+
+        Handles formats like:
+        - "file1.pkl file2.pkl"
+        - "file1.pkl file2.pkl (pos 1)"
+        - "file1.pkl (pos 1) file2.pkl"
+        - "/tmp/path/file1.pkl (pos 1) /tmp/path/file2.pkl"
+
+        Args:
+            location: Location string potentially containing multiple files
+
+        Returns:
+            List of individual file references with their pos markers and paths removed
+        """
+        # Match: optional path + filename (with :) + optional (pos N)
+        # Captures: (/path/to/)?file.pkl:inner/file.pkl( \(pos \d+\))?
+        pattern = r'(?:/[^\s]+/)?[^\s:]+(?::[^\s]+)?\.[\w]+(?:\s+\(pos\s+\d+\))?'
+
+        matches = re.findall(pattern, location)
+
+        # Remove leading temp paths and return filenames with pos markers
+        cleaned_refs = []
+        for match in matches:
+            if match.strip():
+                # Use strip_temp_path to remove temp directory prefix
+                cleaned = self.strip_temp_path(match)
+                cleaned_refs.append(cleaned)
+
+        return cleaned_refs
 
     def to_issues(self) -> List[Issue]:
         """
@@ -76,10 +109,15 @@ class ModelAuditResult(BaseModelAuditResult):
             # Create affected objects
             affected = []
             if location:
-                affected.append(Affected(
-                    kind=AffectedType.FILE,
-                    ref=location
-                ))
+                # Split location string into individual file references
+                # Each file can have format: "file" or "file (pos N)"
+                # Multiple files separated by space
+                refs = self._split_location_refs(location)
+                for ref in refs:
+                    affected.append(Affected(
+                        kind=AffectedType.FILE,
+                        ref=ref
+                    ))
 
             # Create technical details
             tech_details = None
@@ -88,7 +126,9 @@ class ModelAuditResult(BaseModelAuditResult):
                 if isinstance(details, dict):
                     tech_details_dict.update(details)
                     # Map opcode to operator for aggregation (if it exists)
-                    if 'opcode' in details:
+                    if 'function' in details:
+                        tech_details_dict['operator'] = details['function']
+                    elif 'opcode' in details:
                         tech_details_dict['operator'] = details['opcode']
                 if why:
                     tech_details_dict['why'] = why
@@ -96,12 +136,35 @@ class ModelAuditResult(BaseModelAuditResult):
                     tech_details_dict['type'] = issue_type
                 tech_details = TechnicalDetails(**tech_details_dict)
 
+            # Build description with optional code preview
+            description = why if why else message
+
+            # Collect all available snippets/code previews
+            snippets = []
+            if isinstance(details, dict):
+                # Check top-level snippet fields
+                for field in ['snippet', 'code_preview', 'code']:
+                    if field in details and details[field]:
+                        snippets.append(details[field])
+
+                # Check inside findings array
+                if 'findings' in details and isinstance(details['findings'], list):
+                    for finding in details['findings']:
+                        if isinstance(finding, dict) and 'snippet' in finding and finding['snippet']:
+                            snippets.append(finding['snippet'])
+
+            # Add all snippets to description
+            if snippets:
+                description += "\n\nCode snippets:"
+                for snippet in snippets:
+                    description += f"\n\"{snippet}\""
+
             # Create the issue
             issue_obj = Issue(
                 id=Issue.generate_id(IssueType.MALICIOUS_CODE),
                 type=IssueType.MALICIOUS_CODE,
                 title=message,
-                description=why if why else message,
+                description=description,
                 severity=severity_enum,
                 cvss={},
                 affected=affected,
