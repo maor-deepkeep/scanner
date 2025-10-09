@@ -1,16 +1,19 @@
 import logging
 import os
+import re
 import time
 import pickle
 import struct
 import zipfile
 import tarfile
 from datetime import datetime
-from typing import List, Dict, Any
+from io import BytesIO
+from typing import List, Dict, Any, Tuple
 
 try:
     import fickling
     import fickling.exception
+    from fickling.polyglot import find_file_properties
     FICKLING_AVAILABLE = True
 except ImportError:
     FICKLING_AVAILABLE = False
@@ -21,37 +24,33 @@ from src.models import (
     FicklingResult as BaseFicklingResult, BaseScanner
 )
 from src.static_scan.exceptions import FicklingScanError, ScannerNotAvailableError
-from src.static_scan.common import normalize_severity, get_scanner_type
+from src.static_scan.common import normalize_severity, get_scanner_type, strip_temp_path
 
 logger = logging.getLogger(__name__)
 
 
 class FicklingResult(BaseFicklingResult):
     """Fickling specific result with full to_issues() implementation."""
-    
+
     def to_issues(self) -> List[Issue]:
         """
         Convert Fickling findings to standardized Issue objects.
-        
+
         Returns:
             List of Issue objects
         """
         issues = []
-        
+
         # Get data from scanner_data
         unsafe_files = self.scanner_data.get('unsafe_files', [])
         error_files = self.scanner_data.get('error_files', [])
         details = self.scanner_data.get('details', {})
-        
+
         # Create issues for unsafe files
         for unsafe_file in unsafe_files:
             # Get all file details
             file_details = details.get(unsafe_file, {})
-            
-            # Map fickling severity to our severity
-            severity_text = file_details.get("severity", "LIKELY_UNSAFE")
-            severity = normalize_severity(severity_text, 'fickling')
-            
+
             # Extract filename - handle archive members (format: archive.zip#member.pkl)
             if '#' in unsafe_file:
                 # Archive member
@@ -62,51 +61,66 @@ class FicklingResult(BaseFicklingResult):
                 # Regular file
                 filename = os.path.basename(unsafe_file)
                 display_path = unsafe_file
-            
-            # Build title based on security finding
-            title = self._generate_issue_title(file_details, filename)
-            
-            # Build description from analysis
-            analysis = file_details.get("analysis", "")
-            if analysis:
-                description = f"Fickling analysis: {analysis}"
+
+            # Strip temp path and create affected object
+            clean_ref = strip_temp_path(display_path)
+            affected = [Affected(kind=AffectedType.FILE, ref=clean_ref)]
+
+            # Use split findings if available
+            split_findings = file_details.get('split_findings', [])
+            if split_findings:
+                # Create separate issue for each finding type
+                for finding in split_findings:
+                    severity = normalize_severity(finding['severity'], 'fickling')
+                    issues.append(Issue(
+                        id=Issue.generate_id(IssueType.MALICIOUS_CODE),
+                        type=IssueType.MALICIOUS_CODE,
+                        title=f"{finding['title_suffix']} in {filename}",
+                        description=finding['description'],
+                        severity=severity,
+                        cvss={},
+                        affected=affected,
+                        recommendation="Do not load this file as it may contain malicious code",
+                        references=[],
+                        detected_by=get_scanner_type(self.scanner_name),
+                        technical_details=TechnicalDetails(**file_details) if file_details else None,
+                        detected_at=datetime.now()
+                    ))
             else:
-                description = f"File {filename} contains potentially unsafe operations"
-            
-            # Build technical details from ALL file_details (preserving raw scanner output)
-            tech_details = TechnicalDetails(**file_details) if file_details else None
-            
-            # Create affected object - use display_path for proper reference
-            affected = [Affected(kind=AffectedType.FILE, ref=display_path)]
-            
-            issue = Issue(
-                id=Issue.generate_id(IssueType.MALICIOUS_CODE),
-                type=IssueType.MALICIOUS_CODE,
-                title=title,
-                description=description,
-                severity=severity,
-                cvss={},
-                affected=affected,
-                recommendation="Do not load this file as it may contain malicious code",
-                references=[],
-                detected_by=get_scanner_type(self.scanner_name),
-                technical_details=tech_details,
-                detected_at=datetime.now()
-            )
-            issues.append(issue)
+                # Fallback: create single issue
+                severity_text = file_details.get("severity", "LIKELY_UNSAFE")
+                severity = normalize_severity(severity_text, 'fickling')
+                analysis = file_details.get("analysis", "")
+
+                issues.append(Issue(
+                    id=Issue.generate_id(IssueType.MALICIOUS_CODE),
+                    type=IssueType.MALICIOUS_CODE,
+                    title=f"Unsafe pickle operations in {filename}",
+                    description=analysis or f"File {filename} contains potentially unsafe operations",
+                    severity=severity,
+                    cvss={},
+                    affected=affected,
+                    recommendation="Do not load this file as it may contain malicious code",
+                    references=[],
+                    detected_by=get_scanner_type(self.scanner_name),
+                    technical_details=TechnicalDetails(**file_details) if file_details else None,
+                    detected_at=datetime.now()
+                ))
         
         # Create issues for files with errors
         for error_file in error_files:
             file_details = details.get(error_file, {})
             error_msg = file_details.get("error", "Unknown error")
-            
+
             # Skip "not_pickle" errors - these are not real errors
             if file_details.get("status") == "not_pickle":
                 continue
-            
+
             filename = os.path.basename(error_file)
-            
-            affected = [Affected(kind=AffectedType.FILE, ref=error_file)]
+
+            # Strip temp path and create affected object
+            clean_ref = strip_temp_path(error_file)
+            affected = [Affected(kind=AffectedType.FILE, ref=clean_ref)]
             
             issue = Issue(
                 id=Issue.generate_id(IssueType.RISK),
@@ -341,34 +355,145 @@ class FicklingScanner(BaseScanner):
                 # If no exception, file is safe - no raw output from fickling
                 return {"safe": True}
             except fickling.exception.UnsafeFileError as e:
-                # Check if this is related to a trusted module
-                analysis = str(e)
-                if hasattr(e, 'info') and e.info:
-                    analysis = e.info.get('analysis', str(e))
-                
-                if self.is_trusted_module_issue(analysis):
-                    # This is a false positive from a trusted ML framework
-                    # Still return the raw fickling output
-                    if hasattr(e, 'info') and e.info:
-                        result = e.info.copy()
-                    else:
-                        result = {"analysis": str(e)}
-                    result["safe"] = True  # Override safety after filtering
-                    return result
-                
-                # File contains unsafe operations - return raw fickling output
+                # Process and filter findings
                 if hasattr(e, 'info') and e.info:
                     result = e.info.copy()
-                    result["safe"] = False
                 else:
-                    # Fallback if no info available
-                    result = {
-                        "safe": False,
-                        "analysis": str(e),
-                        "severity": "LIKELY_UNSAFE"
-                    }
+                    result = {"analysis": str(e), "severity": "LIKELY_UNSAFE"}
+
+                # Split and filter findings
+                result = self._process_fickling_result(result)
+
                 return result
-    
+
+    def _process_fickling_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process fickling result: filter trusted modules, aggregate findings, split by type.
+
+        Stores processed findings in result['split_findings'] for to_issues() to use.
+        """
+        analysis = result.get('analysis', '')
+        detailed_results = result.get('detailed_results', {})
+        analysis_result = detailed_results.get('AnalysisResult', {})
+
+        # Split analysis by lines and filter/aggregate
+        findings = [line.strip() for line in analysis.split('\n') if line.strip()]
+
+        # Filter trusted modules and aggregate
+        import_by_module = {}
+        assigned_by_func = {}
+        other_findings = set()
+
+        for finding in findings:
+            if self.is_trusted_module_issue(finding):
+                continue
+
+            # Categorize
+            if finding.startswith('`from ') and ' import ' in finding:
+                try:
+                    module = finding.split('`from ')[1].split(' import ')[0]
+                    if module not in import_by_module:
+                        import_by_module[module] = []
+                    import_by_module[module].append(finding)
+                except (IndexError, AttributeError):
+                    other_findings.add(finding)
+            elif 'is assigned value `' in finding and '(...)`' in finding:
+                try:
+                    func = finding.split('is assigned value `')[1].split('(...)`')[0]
+                    if func not in assigned_by_func:
+                        assigned_by_func[func] = {'finding': finding, 'count': 0}
+                    assigned_by_func[func]['count'] += 1
+                except (IndexError, AttributeError):
+                    other_findings.add(finding)
+            else:
+                other_findings.add(finding)
+
+        # Build filtered analysis
+        filtered_findings = []
+        for module, imports in import_by_module.items():
+            if len(imports) == 1:
+                filtered_findings.append(imports[0])
+            else:
+                filtered_findings.append(f"{imports[0]} ({len(imports)} imports from this module)")
+
+        for func, data in assigned_by_func.items():
+            if data['count'] == 1:
+                filtered_findings.append(data['finding'])
+            else:
+                filtered_findings.append(f"{data['finding']} ({data['count']} occurrences)")
+
+        filtered_findings.extend(sorted(other_findings))
+
+        # Update result
+        result['analysis'] = '\n'.join(filtered_findings) if filtered_findings else ''
+        result['safe'] = not bool(filtered_findings)
+
+        # Store split findings by type for to_issues()
+        result['split_findings'] = self._split_findings_by_type(analysis_result, filtered_findings)
+
+        return result
+
+    def _split_findings_by_type(self, analysis_result: Dict[str, Any], filtered_lines: List[str]) -> List[Dict[str, Any]]:
+        """Split findings into separate dicts by type for to_issues()."""
+        findings = []
+
+        finding_configs = {
+            "UnsafeImports": {"title_suffix": "Unsafe imports", "severity": "CRITICAL"},
+            "UnsafeImportsML": {"title_suffix": "Unsafe ML-specific imports", "severity": "CRITICAL"},
+            "NonStandardImports": {"title_suffix": "Non-standard imports", "severity": "HIGH"},
+            "UnusedVariables": {"title_suffix": "Suspicious unused code", "severity": "HIGH"},
+            "OvertlyBadEvals": {"title_suffix": "Eval injection", "severity": "CRITICAL"},
+            "BadCalls": {"title_suffix": "Dangerous function calls", "severity": "CRITICAL"},
+        }
+
+        for finding_type, config in finding_configs.items():
+            if finding_type in analysis_result:
+                result_value = analysis_result[finding_type]
+
+                # Skip if from trusted module
+                if isinstance(result_value, str) and 'from ' in result_value and ' import ' in result_value:
+                    try:
+                        module_name = result_value.split('from ')[1].split(' import ')[0].strip()
+                        if self.is_trusted_module_issue(module_name):
+                            continue
+                    except (IndexError, AttributeError):
+                        pass
+
+                # Extract description from filtered lines
+                description = self._extract_lines_matching(filtered_lines, result_value)
+
+                if description:
+                    findings.append({
+                        'title_suffix': config['title_suffix'],
+                        'description': description,
+                        'severity': config['severity']
+                    })
+
+        return findings
+
+    def _extract_lines_matching(self, lines: List[str], result_value: Any) -> str:
+        """Extract lines matching the result value."""
+        search_terms = []
+        if isinstance(result_value, list):
+            for item in result_value:
+                if isinstance(item, (list, tuple)):
+                    search_terms.extend(item)
+                else:
+                    search_terms.append(item)
+        elif isinstance(result_value, tuple):
+            search_terms = list(result_value)
+        else:
+            search_terms = [result_value]
+
+        relevant_lines = []
+        for line in lines:
+            for term in search_terms:
+                if str(term) in line:
+                    relevant_lines.append(line)
+                    break
+
+        return '\n'.join(relevant_lines) if relevant_lines else str(result_value)
+
     def _check_archive_safety(self, archive_path: str, archive_type: str) -> Dict[str, Any]:
         """
         Check safety of archive contents using streaming to handle large files.
