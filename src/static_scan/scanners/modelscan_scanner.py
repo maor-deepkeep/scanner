@@ -14,20 +14,20 @@ except ImportError:
     IssueSeverity = None
 
 from src.models import (
-    Issue, IssueType, Affected, AffectedType, TechnicalDetails, 
+    Issue, IssueType, Affected, AffectedType, TechnicalDetails,
     ModelScanResult as BaseModelScanResult, BaseScanner
 )
 from src.static_scan.exceptions import (
     ModelScanError, ScannerNotAvailableError
 )
-from src.static_scan.common import normalize_severity, get_scanner_type
+from src.static_scan.common import normalize_severity, get_scanner_type, strip_temp_path
 
 logger = logging.getLogger(__name__)
 
 
 class ModelScanResult(BaseModelScanResult):
     """ModelScan specific result with issues and full to_issues() implementation."""
-    
+
     def to_issues(self) -> List[Issue]:
         """
         Convert ModelScan findings to standardized Issue objects.
@@ -65,9 +65,11 @@ class ModelScanResult(BaseModelScanResult):
             # Create affected objects
             affected = []
             if raw_details.get('source'):
+                # Strip temp path from source reference
+                clean_ref = strip_temp_path(raw_details.get('source'))
                 affected.append(Affected(
                     kind=AffectedType.FILE,
-                    ref=raw_details.get('source')
+                    ref=clean_ref
                 ))
 
             # Create technical details with ALL raw details from scanner
