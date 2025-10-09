@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import re
 import tarfile
 import tempfile
 import time
@@ -20,14 +21,14 @@ from src.models import (
     PickleScanResult as BasePickleScanResult, BaseScanner
 )
 from src.static_scan.exceptions import PickleScanError, ScannerNotAvailableError
-from src.static_scan.common import normalize_severity, get_scanner_type
+from src.static_scan.common import normalize_severity, get_scanner_type, strip_temp_path
 
 logger = logging.getLogger(__name__)
 
 
 class PickleScanResult(BasePickleScanResult):
     """PickleScan specific result with full to_issues() implementation."""
-    
+
     def to_issues(self) -> List[Issue]:
         """
         Convert PickleScan findings to standardized Issue objects.
@@ -68,9 +69,11 @@ class PickleScanResult(BasePickleScanResult):
                 else:
                     full_path = file_path
 
+                # Strip temp path from file reference
+                clean_ref = strip_temp_path(full_path)
                 affected.append(Affected(
                     kind=AffectedType.FILE,
-                    ref=full_path
+                    ref=clean_ref
                 ))
             
             module = global_info.get('module')
