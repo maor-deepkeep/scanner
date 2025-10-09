@@ -248,6 +248,7 @@ class BaseScanner(ABC):
         # Core ML frameworks
         'torch', 'torchvision', 'pytorch',
         'tensorflow', 'tf', 'keras',
+        'xgboost', 'lightgbm', 'catboost',
         # Scientific computing
         'numpy', 'scipy', 'sklearn', 'scikit-learn',
         'pandas', 'matplotlib', 'seaborn',
@@ -275,15 +276,15 @@ class BaseScanner(ABC):
     def scan(self, path: str) -> BaseScanResult:
         """
         Run the scanner on the specified path.
-        
+
         Args:
             path: File or directory path to scan
-            
+
         Returns:
             Scanner-specific result object that extends BaseScanResult
         """
         pass
-    
+
     @classmethod
     def is_pickle_file(cls, filepath: str) -> bool:
         """Check if a file is a pickle format."""
